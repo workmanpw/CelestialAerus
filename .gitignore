@@ -1,0 +1,10 @@
+/bin/
+/obj/
+*.tmod
+*.dll
+*.pdb
+.vs/
+.idea/
+*.user
+.DS_Store
+Thumbs.db

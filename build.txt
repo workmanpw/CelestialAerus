@@ -1,0 +1,7 @@
+displayName = Celestial Aerus Reworked
+author = Daedalus
+version = 1.4
+includeSource = true
+includeSounds = Sounds/*.mp3
+hideCode = true
+hideResources = true

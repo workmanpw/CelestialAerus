@@ -1,0 +1,144 @@
+Mods: {
+	CelestialAerus: {
+		Items: {
+			AncientHatchet: {
+				DisplayName: Ancient Hatchet
+				Tooltip:
+					'''
+					Chaos in flames
+					An ancient relic that burns with the heat of a legendary forge
+					Fires homing, flaming hatchets that explode on impact and bounce between enemies for a short time
+					Inflicts Celestial Flames
+					'''
+			}
+
+			AndromedasWrath: {
+				DisplayName: Andromeda's Wrath
+				Tooltip:
+					'''
+					The manifested fury of the Andromeda Galaxy itself
+					"Order!"
+					Fires different projectiles and grants powerful buffs based on what biome you are standing in, and heals a large amount of life on hit
+					Inflicts debilitating debuffs on enemies
+					'''
+			}
+
+			ArkOfTheCelestials: {
+				DisplayName: Ark Of The Celestials
+				Tooltip:
+					'''
+					Fires a spread of Celestial Fireballs that rapidly seek targets
+					"The universe is in your hands now"
+					Heals a large amount of life on hit
+					'''
+			}
+
+			CelestialAerus: {
+				DisplayName: Celestial Aerus
+				Tooltip:
+					'''
+					The legendary blade forged from the heart of a dying universe
+					'When the last star falls, a new light is born'
+					Shoots homing Celestial Fireballs and cosmic blades
+					Switch between different attacks (must set keybind)
+					Heals 125 life on hit
+					'''
+			}
+
+			ThreadOfTheEmpyrean: {
+				DisplayName: Thread Of The Empyrean
+				Tooltip:
+					'''
+					Greatness on a string
+					Tosses an extremely hasty yo-yo
+					Fires Celestial Fireballs that rapidly seek targets
+					Rumor has it that this yo-yo is very dangerous
+					'''
+			}
+
+			CelestialTempest: {
+				DisplayName: Celestial Tempest
+				Tooltip:
+					'''
+					The storm that rages between dimensions
+					You will know Judgement
+					Fires different projectiles and grants powerful buffs based on what biome you are standing in, and heals a large amount of life on hit
+					Inflicts debilitating debuffs on enemies
+					The ultimate fusion of all cosmic forces
+					'''
+			}
+
+			Cosmosis: {
+				DisplayName: Cosmosis
+				Tooltip:
+					'''
+					The embodiment of cosmic order
+					From chaos comes order, from order comes infinity
+					Commands fundamental forces of the universe
+					Fires different projectiles and grants powerful buffs based on what biome you are standing in, and heals a large amount of life on hit
+					Inflicts various debilitating debuffs on enemies
+					'''
+			}
+
+			NebulaBlazeSword: {
+				DisplayName: Nebula Blaze Sword
+				Tooltip:
+					'''
+					A stunning pink blade with a hatred for all creatures
+					It is very volatile and dangerous
+					Do not mistake it for candy
+					Rains cosmic energy onto enemies
+					'''
+			}
+		}
+
+		Projectiles: {
+			AncientHatchetProjectile.DisplayName: Ancient Hatchet Projectile
+			ArkGalaxia2.DisplayName: Ark Galaxia 2
+			CelestialFireball.DisplayName: Celestial Fireball
+			ThrownCelestialAerus.DisplayName: Thrown Celestial Aerus
+			ThreadOfTheEmpyreanProjectile.DisplayName: Thread Of The Empyrean Projectile
+			Galaxia2.DisplayName: Galaxia 2
+			EonBeam.DisplayName: Eon Beam
+			EonBeamV2.DisplayName: Eon Beam V2
+			EonBeamV3.DisplayName: Eon Beam V3
+			EonBeamV4.DisplayName: Eon Beam V4
+			ArkEonBeam.DisplayName: Ark Eon Beam
+			ArkEonBeamV2.DisplayName: Ark Eon Beam V2
+			ArkEonBeamV3.DisplayName: Ark Eon Beam V3
+			ArkEonBeamV4.DisplayName: Ark Eon Beam V4
+			TempestEonBeam.DisplayName: Tempest Eon Beam
+			TempestEonBeamV2.DisplayName: Tempest Eon Beam V2
+			TempestEonBeamV3.DisplayName: Tempest Eon Beam V3
+			TempestEonBeamV4.DisplayName: Tempest Eon Beam V4
+			TempestGalaxia2.DisplayName: Tempest Galaxia 2
+		}
+
+		Buffs: {
+			AndromedasRage: {
+				DisplayName: Andromeda's Rage
+				Description: The power of the universe fuels your attacks
+			}
+
+			CelestialFlames: {
+				DisplayName: Celestial Flames
+				Description: Burning with cosmic fire
+			}
+
+			CrushedDefense: {
+				DisplayName: Crushed Defense
+				Description: Your defenses have been utterly shattered by cosmic power
+			}
+		}
+
+		Keybinds.SwitchAerusMode.DisplayName: Switch Aerus Mode
+	}
+}
+
+"Keybinds.Switch Aerus Mode.DisplayName": Switch  Aerus  Mode
+
+Projectiles: {
+	SpaceLaserBeam.DisplayName: Space Laser Beam
+	NebulaBlazeExplosion.DisplayName: Nebula Blaze Explosion
+	ThrownCelestialAerus.DisplayName: Thrown Celestial Aerus
+}
