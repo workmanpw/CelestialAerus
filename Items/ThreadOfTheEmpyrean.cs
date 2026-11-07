@@ -38,7 +38,7 @@ namespace CelestialAerus.Items
             Item.noUseGraphic = true;
             Item.noMelee = true;
             Item.channel = true;
-            Item.damage = 1200;
+            Item.damage = 1500;
             Item.knockBack = 1f;
             Item.DamageType = DamageClass.Melee;
             Item.value = Item.sellPrice(0, 35);

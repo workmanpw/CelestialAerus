@@ -11,7 +11,7 @@ namespace CelestialAerus.Systems
         {
             if (!Main.dedServ)
             {
-                SwitchModeKeybind = KeybindLoader.RegisterKeybind(Mod, "Switch Aerus Mode", "V");
+                SwitchModeKeybind = KeybindLoader.RegisterKeybind(Mod, "SwitchAerusMode", "V");
             }
         }
 

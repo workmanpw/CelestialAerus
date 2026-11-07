@@ -41,7 +41,6 @@ namespace CelestialAerus.Items
             Item.UseSound = SoundID.Item60;
             Item.autoReuse = true;
             Item.rare = ItemRarityID.Purple;
-            Item.prefix = -1;
             Item.value = 30000000;
             Item.shoot = ModContent.ProjectileType<CosmoBeam>();
             Item.shootSpeed = 28f;
@@ -145,12 +144,8 @@ namespace CelestialAerus.Items
 
         public override void OnHitNPC(Player player, NPC target, NPC.HitInfo hit, int damageDone)
         {
-            player.Heal(75);
-            target.AddBuff(ModContent.BuffType<CelestialFlames>(), 300);
-
-            // Shared helper — same effects the projectiles apply.
-            CelestialHitEffects.ApplyPlayerBiomeBuffs(player);
-            CelestialHitEffects.ApplyEnemyDebuffs(target);
+            // Full Celestial hit package (same as the projectiles).
+            CelestialHitEffects.ApplyCelestialHitBundle(player, target);
         }
     }
 }

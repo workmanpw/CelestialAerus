@@ -9,6 +9,7 @@ using Terraria.ModLoader;
 using Terraria.Localization;
 using Terraria.Audio;
 using CelestialAerus.AerusBuffs;
+using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
 {
@@ -82,67 +83,59 @@ namespace CelestialAerus.Projectiles
 
         public override bool PreDraw(ref Color lightColor)
         {
+            Color lightColorCopy = lightColor;
             Texture2D texture = TextureAssets.Projectile[Type].Value;
-            Vector2 origin = texture.Size() / 2f;
 
-            int count = trailPositions.Count;
+            // Start the ribbon at the projectile's rear edge and give it the
+            // projectile's full width at the head, tapering to a point.
+            float trailStartOffset = texture.Height * 0.5f * Projectile.scale;
+            float trailHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
 
-            for (int i = 0; i < count - 1; i++)
-            {
-                float progress = (count > 1) ? (float)i / (count - 1) : 0f;
-                float alpha = progress * 0.6f;
-                float scale = 0.3f + progress * 0.7f;
+            ShaderTrailDraw.Draw(
+                trailPositions,
+                trailPositions.Count,
+                progress =>
+                {
+                    float hue = (Main.GlobalTimeWrappedHourly * 0.4f + progress * 0.2f) % 1f;
+                    return ShaderTrailDraw.WithAlpha(Main.hslToRgb(hue, 1f, 0.7f), progress * progress * 0.8f);
+                },
+                progress => trailHalfWidth * (float)Math.Pow(progress, 1.15f),
+                "CelestialRibbon",
+                effect =>
+                {
+                    SafeShaderDraw.Set(effect, "TrailStartColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailEndColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailPulseSpeed", 6f);
+                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.22f);
+                },
+                trailStartOffset);
 
-                float hue = (Main.GlobalTimeWrappedHourly * 0.4f + i * 0.03f) % 1f;
-                Color color = Main.hslToRgb(hue, 1f, 0.7f) * alpha;
-                color.A = (byte)(alpha * 255);
-
-                Vector2 drawPos = trailPositions[i] - Main.screenPosition;
-
-                Main.EntitySpriteDraw(
-                    texture,
-                    drawPos,
-                    null,
-                    color,
-                    Projectile.rotation,
-                    origin,
-                    Projectile.scale * scale,
-                    SpriteEffects.None,
-                    0
-                );
-            }
-
-            Vector2 headPos = Projectile.Center - Main.screenPosition;
-            Main.EntitySpriteDraw(
-                texture,
-                headPos,
-                null,
-                Projectile.GetAlpha(lightColor),
-                Projectile.rotation,
-                origin,
-                Projectile.scale,
-                SpriteEffects.None,
-                0
-            );
-
-            return false;
+            return SafeShaderDraw.DrawWithShader("GalaxySwirl",
+                () =>
+                {
+                    Main.EntitySpriteDraw(texture, Projectile.Center - Main.screenPosition, null,
+                        Projectile.GetAlpha(lightColorCopy), Projectile.rotation, texture.Size() / 2f,
+                        Projectile.scale, SpriteEffects.None, 0);
+                },
+                (effect) =>
+                {
+                    SafeShaderDraw.Set(effect, "SwirlIntensity", 0.9f);
+                    SafeShaderDraw.Set(effect, "SwirlColor1", new Color(179, 77, 255));
+                    SafeShaderDraw.Set(effect, "SwirlColor2", new Color(77, 153, 255));
+                    SafeShaderDraw.Set(effect, "SwirlColor3", new Color(255, 102, 204));
+                    SafeShaderDraw.Set(effect, "SwirlSpeed", 2f);
+                    SafeShaderDraw.Set(effect, "SwirlArms", 3f);
+                });
         }
 
         public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
         {
-            // Signature debuff.
-            target.AddBuff(ModContent.BuffType<CelestialFlames>(), 300);
-
+            // Full Celestial hit package (debuffs, heal, buffs, biome buffs).
             if (Projectile.owner >= 0 && Projectile.owner < Main.maxPlayers)
             {
                 Player player = Main.player[Projectile.owner];
                 if (player != null && player.active)
-                {
-                    player.Heal(75);
-                    player.HealEffect(75);
-                    CelestialHitEffects.ApplyPlayerBiomeBuffs(player);
-                    CelestialHitEffects.ApplyEnemyDebuffs(target);
-                }
+                    CelestialHitEffects.ApplyCelestialHitBundle(player, target);
             }
 
             SoundEngine.PlaySound(SoundID.Item14, Projectile.Center);

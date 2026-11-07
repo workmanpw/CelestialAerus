@@ -40,7 +40,7 @@ Mods: {
 					The legendary blade forged from the heart of a dying universe
 					'When the last star falls, a new light is born'
 					Shoots homing Celestial Fireballs and cosmic blades
-					Switch between different attacks (must set keybind)
+					Switch between different attacks (default: V, rebindable)
 					Heals 125 life on hit
 					'''
 			}
@@ -135,10 +135,10 @@ Mods: {
 	}
 }
 
-"Keybinds.Switch Aerus Mode.DisplayName": Switch  Aerus  Mode
-
 Projectiles: {
 	SpaceLaserBeam.DisplayName: Space Laser Beam
 	NebulaBlazeExplosion.DisplayName: Nebula Blaze Explosion
 	ThrownCelestialAerus.DisplayName: Thrown Celestial Aerus
 }
+
+Keybinds.SwitchAerusMode.DisplayName: Switch Aerus Mode

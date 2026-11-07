@@ -3,7 +3,6 @@ using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.DataStructures;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using Terraria.Audio;
 using System;
 
@@ -110,12 +109,36 @@ public class SpaceLaserBeam : ModProjectile
         for (int i = 0; i < Main.maxPlayers; i++)
         {
             Player player = Main.player[i];
-            if (player.active && beamRect.Intersects(player.Hitbox))
+            if (!player.active || player.dead || !beamRect.Intersects(player.Hitbox))
+                continue;
+
+            PlayerDeathReason deathReason =
+                PlayerDeathReason.ByProjectile(Projectile.owner, Projectile.type);
+
+            if (i == Projectile.owner && i == Main.myPlayer)
             {
-                player.Hurt(PlayerDeathReason.ByProjectile(Projectile.owner, Projectile.type), Projectile.damage, 0, true);
-                SoundEngine.PlaySound(new SoundStyle("CelestialAerus/Sounds/SuperBoom"), player.Center);
+                // Pointing the remote at yourself is fatal, no matter what:
+                // bypass Journey godmode, immunity frames, dodges, etc.
+                bool wasInGodMode = player.creativeGodMode;
+                player.creativeGodMode = false;
+                player.statLife = 0;
+                player.KillMe(deathReason, Projectile.damage, 0, false);
+                player.creativeGodMode = wasInGodMode;
             }
+            else
+            {
+                player.Hurt(deathReason, Projectile.damage, 0, true);
+            }
+
+            SoundEngine.PlaySound(new SoundStyle("CelestialAerus/Sounds/SuperBoom"), player.Center);
         }
+    }
+
+    // The beam texture is intentionally not drawn; the visible beam is
+    // built entirely from the dust particles spawned in AI().
+    public override bool PreDraw(ref Color lightColor)
+    {
+        return false;
     }
 
 }

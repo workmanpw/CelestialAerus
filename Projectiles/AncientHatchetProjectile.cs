@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -7,6 +9,8 @@ using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.Localization;
+using CelestialAerus.AerusBuffs;
+using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
 {
@@ -22,10 +26,9 @@ namespace CelestialAerus.Projectiles
         private const float RotationSpeed = 0.4f;
 
         private const float ReturnKillDistance = ReturnSpeed * 2f;
-        private const float MaxReturnDistance  = 3000f;
 
         // --- Fallback return triggers ---
-        private const int NoTargetTimeout = 120;         // ~1 s with no target
+        private const int NoTargetTimeout = 60;          // ~1 s with no target
         private const int LowTimeReturnThreshold = 60;   // start returning with this much timeLeft
 
         // --- State ---
@@ -40,6 +43,9 @@ namespace CelestialAerus.Projectiles
         private float originalDamage = 0f;
         private bool initialized = false;
         private NPC lastHitNPC = null;
+
+        private readonly List<Vector2> trailPositions = new List<Vector2>();
+        private const int MaxTrail = 24;
 
         public override string Texture => "CelestialAerus/Textures/AncientHatchet";
         public override LocalizedText DisplayName => Language.GetOrRegister("Ancient Hatchet");
@@ -81,9 +87,36 @@ namespace CelestialAerus.Projectiles
                 initialized = true;
             }
 
+            // Item-side return trigger: the Ancient Hatchet item sets ai[0]=1
+            // to call the projectile home. The projectile never read ai[0]
+            // before, so that trigger did nothing.
+            if (Projectile.ai[0] == 1f && !isReturning)
+            {
+                Projectile.ai[0] = 0f;
+                StartReturning();
+                return;
+            }
+
             Projectile.rotation += RotationSpeed;
             if (Projectile.rotation > MathHelper.TwoPi)
                 Projectile.rotation -= MathHelper.TwoPi;
+
+            // --- Shader ribbon trail ---
+            // Record a short position history so the ribbon follows the arc
+            // of the throw instead of a single straight line. Add every tick:
+            // the old distance check could never seed the first point (with
+            // an empty list it compared the center to itself, distance 0),
+            // so the trail stayed empty forever and only the dust showed.
+            if (isStuck)
+            {
+                trailPositions.Clear();
+            }
+            else
+            {
+                trailPositions.Add(Projectile.Center);
+                if (trailPositions.Count > MaxTrail)
+                    trailPositions.RemoveAt(0);
+            }
 
             // --- Dust Trail ---
             if (Main.rand.NextBool(2))
@@ -97,7 +130,7 @@ namespace CelestialAerus.Projectiles
                 );
                 Main.dust[dust].noGravity = true;
                 Main.dust[dust].velocity = Projectile.velocity * 0.2f + Main.rand.NextVector2Circular(2f, 2f);
-                Main.dust[dust].fadeIn = 1f;
+                Main.dust[dust].fadeIn = 0f;
                 Main.dust[dust].color = Color.Orange;
                 Main.dust[dust].noLight = false;
                 Main.dust[dust].alpha = 100;
@@ -116,7 +149,7 @@ namespace CelestialAerus.Projectiles
                     Main.dust[spark].velocity = Projectile.velocity * 0.3f + Main.rand.NextVector2Circular(3f, 3f);
                     Main.dust[spark].color = Color.OrangeRed;
                     Main.dust[spark].alpha = 150;
-                    Main.dust[spark].fadeIn = 0.5f;
+                    Main.dust[spark].fadeIn = 0f;
                 }
             }
 
@@ -176,12 +209,9 @@ namespace CelestialAerus.Projectiles
                     return;
                 }
 
-                if (dist > MaxReturnDistance)
-                {
-                    Projectile.Kill();
-                    return;
-                }
-
+                // No far-distance kill: a thrown hatchet always flies home,
+                // however far it went. Killing it when far away is what made
+                // it vanish instead of returning when it hit nothing.
                 Projectile.velocity = toPlayer.SafeNormalize(Vector2.Zero) * ReturnSpeed;
                 return;
             }
@@ -238,6 +268,12 @@ namespace CelestialAerus.Projectiles
 
             Player player = Main.player[Projectile.owner];
 
+            // Apply the Celestial Flames debuff plus the shared Celestial
+            // enemy debuffs, buffs and biome buffs. Healing is handled below
+            // by the hatchet's own lifesteal, so no extra heal is added here.
+            if (player != null && player.active)
+                CelestialHitEffects.ApplyCelestialHitBundle(player, target, healAmount: 0);
+
             if (!isReturning)
             {
                 int lifeStealAmount = 50;
@@ -256,7 +292,7 @@ namespace CelestialAerus.Projectiles
                 if (Main.rand.NextBool())
                 {
                     Main.dust[dust].scale = 0.5f;
-                    Main.dust[dust].fadeIn = 1f + Main.rand.Next(10) * 0.1f;
+                    Main.dust[dust].fadeIn = 0f;
                 }
             }
             for (int j = 0; j < 70; j++)
@@ -355,15 +391,112 @@ namespace CelestialAerus.Projectiles
 
         public override bool PreDraw(ref Color lightColor)
         {
+            Color lightColorCopy = lightColor;
             Texture2D texture = TextureAssets.Projectile[Type].Value;
-            Vector2 drawPos = Projectile.Center - Main.screenPosition;
-            Main.EntitySpriteDraw(texture, drawPos, null,
-                Projectile.GetAlpha(lightColor),
-                Projectile.rotation,
-                texture.Size() / 2f,
-                Projectile.scale,
-                SpriteEffects.None, 0);
-            return false;
+
+            // Fire trail, Calamity-style: the shaders stay simple and the
+            // drawing does the work — three layered ribbons (outer glow, fire
+            // body, white-hot core) with independent flicker so the flame
+            // tongues dance instead of pulsing as one smooth band.
+            float trailStartOffset = texture.Height * 0.5f * Projectile.scale;
+            float outerHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
+            float flameHalfWidth = outerHalfWidth * 0.62f;
+            float coreHalfWidth = outerHalfWidth * 0.3f;
+            float fireTime = Main.GlobalTimeWrappedHourly;
+
+            float Flicker(float progress, float phase, float amount)
+            {
+                // Keep the head size stable and let the flame tongues dance
+                // along the middle and tail of the ribbon.
+                float envelope = (float)Math.Sin(MathHelper.Clamp(progress, 0f, 1f) * MathHelper.Pi);
+                float wave = (float)Math.Sin(fireTime * 12f - progress * 28f + phase);
+                float lick = (float)Math.Sin(fireTime * 7f + progress * 17f + phase * 1.7f);
+                return 1f + envelope * amount * (wave * 0.7f + lick * 0.3f);
+            }
+
+            // Layer 1 — outer glow: broad, deep orange, dim. The heat haze.
+            ShaderTrailDraw.Draw(
+                trailPositions,
+                trailPositions.Count,
+                progress => ShaderTrailDraw.WithAlpha(
+                    Color.Lerp(new Color(150, 24, 0), new Color(255, 112, 12), progress),
+                    (float)Math.Pow(progress, 0.85f) * 0.55f * Flicker(progress, 0f, 0.16f)),
+                progress => outerHalfWidth * (float)Math.Pow(progress, 1.1f) * Flicker(progress, 0f, 0.32f),
+                "CelestialRibbon",
+                effect =>
+                {
+                    SafeShaderDraw.Set(effect, "TrailStartColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailEndColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailPulseSpeed", 9f);
+                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.32f);
+                },
+                trailStartOffset);
+
+            // Layer 2 — flame body: the fire shader does the burning, the
+            // drawing sets the shape. FireDecay stays 0 so the burn is even
+            // along the ribbon and the vertex fade does the head-to-tail falloff.
+            ShaderTrailDraw.Draw(
+                trailPositions,
+                trailPositions.Count,
+                progress => ShaderTrailDraw.WithAlpha(
+                    Color.Lerp(new Color(255, 90, 0), new Color(255, 190, 80), progress),
+                    (float)Math.Pow(progress, 0.9f) * 0.9f * Flicker(progress, 2.1f, 0.1f)),
+                progress => flameHalfWidth * (float)Math.Pow(progress, 1.2f) * Flicker(progress, 2.1f, 0.22f),
+                "CelestialFireTrail",
+                effect =>
+                {
+                    SafeShaderDraw.Set(effect, "TrailStartColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailEndColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailPulseSpeed", 9f);
+                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.3f);
+                    SafeShaderDraw.Set(effect, "TrailFades", 0f);
+                    SafeShaderDraw.Set(effect, "TrailFadeSpeed", 1f);
+                    SafeShaderDraw.Set(effect, "TrailGlows", 1f);
+                    SafeShaderDraw.Set(effect, "TrailGlowColor", new Color(255, 153, 51));
+                    SafeShaderDraw.Set(effect, "FireIntensity", 1.35f);
+                    SafeShaderDraw.Set(effect, "FireColor", new Color(255, 115, 13));
+                    SafeShaderDraw.Set(effect, "FireDecay", 0f);
+                    SafeShaderDraw.Set(effect, "FireEmbers", 1f);
+                },
+                trailStartOffset);
+
+            // Layer 3 — white-hot core: narrow, bright, the hottest part.
+            ShaderTrailDraw.Draw(
+                trailPositions,
+                trailPositions.Count,
+                progress => ShaderTrailDraw.WithAlpha(
+                    Color.Lerp(new Color(255, 180, 60), new Color(255, 248, 200), progress),
+                    (float)Math.Pow(progress, 0.95f) * 0.95f * Flicker(progress, 4.2f, 0.08f)),
+                progress => coreHalfWidth * (float)Math.Pow(progress, 1.3f) * Flicker(progress, 4.2f, 0.15f),
+                "CelestialRibbon",
+                effect =>
+                {
+                    SafeShaderDraw.Set(effect, "TrailStartColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailEndColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailPulseSpeed", 13f);
+                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.35f);
+                },
+                trailStartOffset);
+
+            return SafeShaderDraw.DrawWithShader("AncientHatchetFlame",
+                () =>
+                {
+                Vector2 drawPos = Projectile.Center - Main.screenPosition;
+                Main.EntitySpriteDraw(texture, drawPos, null,
+                    Projectile.GetAlpha(lightColorCopy),
+                    Projectile.rotation,
+                    texture.Size() / 2f,
+                    Projectile.scale,
+                    SpriteEffects.None, 0);
+                },
+                (effect) =>
+                {
+                    SafeShaderDraw.Set(effect, "FlameIntensity", 1.55f);
+                    SafeShaderDraw.Set(effect, "FlameDistortion", 1.45f);
+                    SafeShaderDraw.Set(effect, "FlameCoreColor", new Color(255, 218, 92));
+                    SafeShaderDraw.Set(effect, "FlameEdgeColor", new Color(224, 48, 0));
+                    SafeShaderDraw.Set(effect, "AxeSpinSpeed", 5f);
+                });
         }
     }
 }

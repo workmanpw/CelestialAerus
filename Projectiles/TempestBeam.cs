@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -8,6 +9,7 @@ using Terraria.ModLoader;
 using Terraria.Localization;
 using Terraria.Audio;
 using CelestialAerus.AerusBuffs;
+using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
 {
@@ -53,7 +55,7 @@ namespace CelestialAerus.Projectiles
             Lighting.AddLight(Projectile.Center, 0.2f, 0.5f, 0.9f);
 
             // Steady spin so the beam visibly rotates through its flight.
-            spin += 0.03f;
+            spin += 0.10f;
             if (Projectile.velocity.LengthSquared() > 0.25f)
                 Projectile.rotation = Projectile.velocity.ToRotation() + spin;
 
@@ -86,51 +88,68 @@ namespace CelestialAerus.Projectiles
 
         public override bool PreDraw(ref Color lightColor)
         {
+            Color lightColorCopy = lightColor;
             Texture2D texture = TextureAssets.Projectile[Type].Value;
-            Vector2 origin = texture.Size() / 2f;
 
-            int count = trailPositions.Count;
+            // Soft halo around the blade instead of a ribbon through it.
+            float haloRadius = Math.Max(texture.Width, texture.Height) * 0.72f * Projectile.scale;
+            float haloPulse = 0.85f + 0.15f * (float)Math.Sin(Main.GlobalTimeWrappedHourly * 5f);
 
-            // Trail only — skip the newest entry (that is the head).
-            for (int i = 0; i < count - 1; i++)
-            {
-                float progress = (count > 1) ? (float)i / (count - 1) : 0f;
-                float alpha = progress * 0.8f;
-                float scale = 0.3f + progress * 0.7f;
+            HaloDraw.Draw(Projectile.Center, haloRadius, new Color(30, 200, 150), 0.45f * haloPulse);
+            HaloDraw.Draw(Projectile.Center, haloRadius * 0.7f, new Color(160, 255, 230), 0.4f * haloPulse);
 
-                Color color = new Color(100, 200, 255) * alpha;
-                color.A = (byte)(alpha * 255);
+            // Shader ribbon streaming behind the blade.
+            float trailStartOffset = texture.Height * 0.5f * Projectile.scale;
+            float trailHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
 
-                Vector2 drawPos = trailPositions[i] - Main.screenPosition;
+            ShaderTrailDraw.Draw(
+                trailPositions,
+                trailPositions.Count,
+                progress => ShaderTrailDraw.WithAlpha(
+                    Color.Lerp(new Color(30, 190, 140), new Color(190, 255, 235), progress),
+                    progress * progress * 0.85f),
+                progress => trailHalfWidth * (float)Math.Pow(progress, 1.15f),
+                "CelestialRibbon",
+                effect =>
+                {
+                    SafeShaderDraw.Set(effect, "TrailStartColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailEndColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailPulseSpeed", 5f);
+                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.22f);
+                },
+                trailStartOffset);
 
+            return SafeShaderDraw.DrawWithShader("EonBeam",
+                () =>
+                {
+
+                Vector2 origin = texture.Size() / 2f;
+
+                // Head at full opacity.
+                Vector2 headPos = Projectile.Center - Main.screenPosition;
                 Main.EntitySpriteDraw(
                     texture,
-                    drawPos,
+                    headPos,
                     null,
-                    color,
+                    Projectile.GetAlpha(lightColorCopy),
                     Projectile.rotation,
                     origin,
-                    Projectile.scale * scale,
+                    Projectile.scale,
                     SpriteEffects.None,
                     0
                 );
-            }
-
-            // Head at full opacity.
-            Vector2 headPos = Projectile.Center - Main.screenPosition;
-            Main.EntitySpriteDraw(
-                texture,
-                headPos,
-                null,
-                Projectile.GetAlpha(lightColor),
-                Projectile.rotation,
-                origin,
-                Projectile.scale,
-                SpriteEffects.None,
-                0
-            );
-
-            return false;
+                },
+                (effect) =>
+                {
+                    SafeShaderDraw.Set(effect, "BeamWidth", 15f);
+                    SafeShaderDraw.Set(effect, "BeamIntensity", 1.4f);
+                    SafeShaderDraw.Set(effect, "BeamCoreColor", new Color(128, 255, 204));
+                    SafeShaderDraw.Set(effect, "BeamEdgeColor", new Color(26, 179, 128));
+                    SafeShaderDraw.Set(effect, "BeamPulseSpeed", 7f);
+                    SafeShaderDraw.Set(effect, "BeamFlickers", 1f);
+                    SafeShaderDraw.Set(effect, "BeamFlickerIntensity", 0.3f);
+                    SafeShaderDraw.Set(effect, "BeamSpinSpeed", 4f);
+                });
         }
 
         public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)

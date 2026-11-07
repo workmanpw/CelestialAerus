@@ -9,6 +9,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Terraria.Audio;
 using Terraria.Localization;
+using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
 {
@@ -81,33 +82,54 @@ namespace CelestialAerus.Projectiles
         // --- Draw the trail ---
         public override bool PreDraw(ref Color lightColor)
         {
+            Color lightColorCopy = lightColor;
             Texture2D texture = TextureAssets.Projectile[Type].Value;
-            Vector2 origin = new Vector2(texture.Width / 2f, texture.Height / 2f);
 
-            for (int i = 0; i < trailPositions.Count; i++)
-            {
-                float progress = (float)i / trailPositions.Count; // 0 = oldest, 1 = newest
-                float alpha = progress * 0.7f;
-                float scale = 0.4f + progress * 0.6f;
+            // Start the ribbon at the projectile's rear edge and give it the
+            // projectile's full width at the head, tapering to a point.
+            float trailStartOffset = texture.Height * 0.5f * Projectile.scale;
+            float trailHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
 
-                Color color = new Color(Main.DiscoR, Main.DiscoG, Main.DiscoB) * alpha;
-                color.A = (byte)(alpha * 255);
+            ShaderTrailDraw.Draw(
+                trailPositions,
+                trailPositions.Count,
+                progress => ShaderTrailDraw.WithAlpha(
+                    Color.Lerp(new Color(255, 190, 70), new Color(255, 70, 12), progress),
+                    progress * progress * 0.78f),
+                progress => trailHalfWidth * (float)Math.Pow(progress, 1.15f),
+                "CelestialRibbon",
+                effect =>
+                {
+                    SafeShaderDraw.Set(effect, "TrailStartColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailEndColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailPulseSpeed", 7f);
+                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.24f);
+                },
+                trailStartOffset);
 
-                Vector2 drawPos = trailPositions[i] - Main.screenPosition;
-
-                Main.EntitySpriteDraw(
-                    texture,
-                    drawPos,
-                    null,
-                    color,
-                    Projectile.rotation,
-                    origin,
-                    Projectile.scale * scale,
-                    SpriteEffects.None,
-                    0
-                );
-            }
-            return true;
+            return SafeShaderDraw.DrawWithShader("CelestialFireTrail",
+                () =>
+                {
+                    Main.EntitySpriteDraw(texture, Projectile.Center - Main.screenPosition, null,
+                        Projectile.GetAlpha(lightColorCopy), Projectile.rotation, texture.Size() / 2f,
+                        Projectile.scale, SpriteEffects.None, 0);
+                },
+                (effect) =>
+                {
+                    SafeShaderDraw.Set(effect, "TrailWidth", 12f);
+                    SafeShaderDraw.Set(effect, "TrailStartColor", new Color(255, 179, 51));
+                    SafeShaderDraw.Set(effect, "TrailEndColor", new Color(230, 77, 0));
+                    SafeShaderDraw.Set(effect, "TrailFades", 0f);
+                    SafeShaderDraw.Set(effect, "TrailFadeSpeed", 1f);
+                    SafeShaderDraw.Set(effect, "TrailPulseSpeed", 7f);
+                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.4f);
+                    SafeShaderDraw.Set(effect, "TrailGlows", 1f);
+                    SafeShaderDraw.Set(effect, "TrailGlowColor", new Color(255, 153, 51));
+                    SafeShaderDraw.Set(effect, "FireIntensity", 1.2f);
+                    SafeShaderDraw.Set(effect, "FireColor", new Color(255, 115, 13));
+                    SafeShaderDraw.Set(effect, "FireDecay", 0.7f);
+                    SafeShaderDraw.Set(effect, "FireEmbers", 1f);
+                });
         }
 
         public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)

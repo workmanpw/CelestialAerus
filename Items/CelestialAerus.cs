@@ -23,7 +23,7 @@ namespace CelestialAerus.Items
             "The legendary blade forged from the heart of a dying universe\n" +
             "'When the last star falls, a new light is born'\n" +
             "Shoots homing Celestial Fireballs and cosmic blades\n" +
-            "Switch between different attacks (must set keybind)\n" +
+            "Switch between different attacks (default: V, rebindable)\n" +
             "Heals 125 life on hit"
         );
 

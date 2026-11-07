@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Terraria;
@@ -6,6 +8,7 @@ using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.Localization;
+using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
 {
@@ -26,6 +29,10 @@ namespace CelestialAerus.Projectiles
 
         // Explosion state.
         private bool hasExploded = false;
+
+        // Continuous ribbon trail history.
+        private readonly List<Vector2> trailPositions = new List<Vector2>();
+        private const int MaxTrail = 14;
 
         // Texture and display name.
         public override string Texture =>
@@ -77,6 +84,11 @@ namespace CelestialAerus.Projectiles
                 0.15f,
                 0.8f
             );
+
+            // Track the flight path for the continuous ribbon trail.
+            trailPositions.Add(Projectile.Center);
+            if (trailPositions.Count > MaxTrail)
+                trailPositions.RemoveAt(0);
 
             // Create the pink and purple trail.
             if (Main.rand.NextBool(2))
@@ -402,31 +414,72 @@ namespace CelestialAerus.Projectiles
             Texture2D texture =
                 TextureAssets.Projectile[Type].Value;
 
-            Vector2 origin =
-                texture.Size() / 2f;
+            const float spriteScale = 0.55f;
 
-            Color color =
-                new Color(
-                    255,
-                    80,
-                    255,
-                    255
-                );
+            // One continuous ribbon behind the bolt, full width at the head
+            // and tapering to a thin tail.
+            float trailStartOffset =
+                texture.Height * 0.5f * spriteScale;
+            float trailHalfWidth =
+                Math.Max(Projectile.width, Projectile.height) * 0.5f * spriteScale; // VertexStrip treats this as a half-width
 
-            Main.EntitySpriteDraw(
-                texture,
-                Projectile.Center -
-                    Main.screenPosition,
-                null,
-                color,
-                Projectile.rotation,
-                origin,
-                Projectile.scale * 0.55f,
-                SpriteEffects.None,
-                0
-            );
+            ShaderTrailDraw.Draw(
+                trailPositions,
+                trailPositions.Count,
+                progress => ShaderTrailDraw.WithAlpha(
+                    Color.Lerp(
+                        new Color(90, 15, 120),
+                        new Color(255, 110, 235),
+                        progress),
+                    progress * progress * 0.85f),
+                progress => trailHalfWidth * (float)Math.Pow(progress, 1.15f),
+                "CelestialRibbon",
+                effect =>
+                {
+                    SafeShaderDraw.Set(effect, "TrailStartColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailEndColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailPulseSpeed", 6f);
+                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.22f);
+                },
+                trailStartOffset);
 
-            return false;
+            return SafeShaderDraw.DrawWithShader("CosmicGlow",
+                () =>
+                {
+                    Vector2 origin =
+                        texture.Size() / 2f;
+
+                    Color color =
+                        new Color(
+                            255,
+                            80,
+                            255,
+                            255
+                        );
+
+                    Main.EntitySpriteDraw(
+                        texture,
+                        Projectile.Center -
+                            Main.screenPosition,
+                        null,
+                        color,
+                        Projectile.rotation,
+                        origin,
+                        Projectile.scale * spriteScale,
+                        SpriteEffects.None,
+                        0
+                    );
+                },
+                (effect) =>
+                {
+                    SafeShaderDraw.Set(effect, "GlowRadius", 35f);
+                    SafeShaderDraw.Set(effect, "GlowInnerColor", new Color(255, 128, 51));
+                    SafeShaderDraw.Set(effect, "GlowOuterColor", new Color(153, 26, 102));
+                    SafeShaderDraw.Set(effect, "GlowPulseSpeed", 3f);
+                    SafeShaderDraw.Set(effect, "GlowPulseIntensity", 0.4f);
+                    SafeShaderDraw.Set(effect, "GlowRotates", 1f);
+                    SafeShaderDraw.Set(effect, "GlowRotationSpeed", 0.8f);
+                });
         }
 
         // Set the projectile color.

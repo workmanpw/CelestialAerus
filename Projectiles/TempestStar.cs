@@ -10,6 +10,7 @@ using Terraria.GameContent;
 using Terraria.Audio;
 using Terraria.DataStructures;
 using CelestialAerus.AerusBuffs;
+using CelestialAerus.Effects;
 
 namespace CelestialAerus.AerusProjectiles
 {
@@ -97,52 +98,46 @@ namespace CelestialAerus.AerusProjectiles
 
         public override bool PreDraw(ref Color lightColor)
         {
+            Color lightColorCopy = lightColor;
             Texture2D texture = TextureAssets.Projectile[Type].Value;
-            Vector2 origin = texture.Size() / 2f;
 
-            int count = trailPositions.Count;
+            // Start the ribbon at the star's rear edge and give it the
+            // projectile's full width at the head, tapering to a point.
+            float trailStartOffset = texture.Height * 0.5f * Projectile.scale;
+            float trailHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
 
-            // Trail only — skip newest entry.
-            for (int i = 0; i < count - 1; i++)
-            {
-                float progress = (count > 1) ? (float)i / (count - 1) : 0f;
-                float alpha = progress * 0.6f;
-                float scale = 0.3f + progress * 0.7f;
+            ShaderTrailDraw.Draw(
+                trailPositions,
+                trailPositions.Count,
+                progress =>
+                {
+                    float hue = (Main.GlobalTimeWrappedHourly * 0.6f + progress * 0.14f) % 1f;
+                    return ShaderTrailDraw.WithAlpha(Main.hslToRgb(hue, 1f, 0.72f), progress * progress * 0.8f);
+                },
+                progress => trailHalfWidth * (float)Math.Pow(progress, 1.15f),
+                "CelestialRibbon",
+                effect =>
+                {
+                    SafeShaderDraw.Set(effect, "TrailStartColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailEndColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailPulseSpeed", 6f);
+                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.25f);
+                },
+                trailStartOffset);
 
-                float hue = (Main.GlobalTimeWrappedHourly * 0.6f + i * 0.02f) % 1f;
-                Color color = Main.hslToRgb(hue, 1f, 0.7f) * alpha;
-                color.A = (byte)(alpha * 255);
-
-                Vector2 drawPos = trailPositions[i] - Main.screenPosition;
-
-                Main.EntitySpriteDraw(
-                    texture,
-                    drawPos,
-                    null,
-                    color,
-                    Projectile.rotation,
-                    origin,
-                    Projectile.scale * scale,
-                    SpriteEffects.None,
-                    0
-                );
-            }
-
-            // Head at full opacity.
-            Vector2 headPos = Projectile.Center - Main.screenPosition;
-            Main.EntitySpriteDraw(
-                texture,
-                headPos,
-                null,
-                Projectile.GetAlpha(lightColor),
-                Projectile.rotation,
-                origin,
-                Projectile.scale,
-                SpriteEffects.None,
-                0
-            );
-
-            return false;
+            return SafeShaderDraw.DrawWithShader("AethericPulse",
+                () =>
+                {
+                    Main.EntitySpriteDraw(texture, Projectile.Center - Main.screenPosition, null,
+                        Projectile.GetAlpha(lightColorCopy), Projectile.rotation, texture.Size() / 2f,
+                        Projectile.scale, SpriteEffects.None, 0);
+                },
+                (effect) =>
+                {
+                    SafeShaderDraw.Set(effect, "PulseIntensity", 1.2f);
+                    SafeShaderDraw.Set(effect, "PulseCount", 3f);
+                    SafeShaderDraw.Set(effect, "PulseColor", new Color(128, 255, 230));
+                });
         }
 
         public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)

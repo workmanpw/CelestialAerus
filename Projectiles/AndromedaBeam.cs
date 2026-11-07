@@ -9,6 +9,7 @@ using Terraria.ModLoader;
 using Terraria.Localization;
 using Terraria.Audio;
 using CelestialAerus.AerusBuffs;
+using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
 {
@@ -55,7 +56,7 @@ namespace CelestialAerus.Projectiles
             Lighting.AddLight(Projectile.Center, 0.8f, 0.3f, 0.05f);
 
             // Face movement direction + steady spin (opposite direction to CosmoBeam).
-            spin -= 0.02f;
+            spin -= 0.08f;
             if (Projectile.velocity.LengthSquared() > 0.25f)
                 Projectile.rotation = Projectile.velocity.ToRotation() + spin;
 
@@ -88,73 +89,76 @@ namespace CelestialAerus.Projectiles
 
         public override bool PreDraw(ref Color lightColor)
         {
+            Color lightColorCopy = lightColor;
             Texture2D texture = TextureAssets.Projectile[Type].Value;
-            Vector2 origin = texture.Size() / 2f;
 
-            int count = trailPositions.Count;
+            // Soft halo around the blade instead of a ribbon through it.
+            float haloRadius = Math.Max(texture.Width, texture.Height) * 0.72f * Projectile.scale;
+            float haloPulse = 0.85f + 0.15f * (float)Math.Sin(Main.GlobalTimeWrappedHourly * 4f);
 
-            for (int i = 0; i < count - 1; i++)
-            {
-                float progress = (count > 1) ? (float)i / (count - 1) : 0f;
-                float alpha = progress * 0.7f;
-                float scale = 0.4f + progress * 0.6f;
+            HaloDraw.Draw(Projectile.Center, haloRadius, new Color(255, 110, 20), 0.45f * haloPulse);
+            HaloDraw.Draw(Projectile.Center, haloRadius * 0.7f, new Color(255, 210, 110), 0.4f * haloPulse);
 
-                Color color = Color.Lerp(
-                    new Color(255, 100, 0),
-                    new Color(255, 50, 0),
-                    progress) * alpha;
-                color.A = (byte)(alpha * 255);
+            // Shader ribbon streaming behind the blade.
+            float trailStartOffset = texture.Height * 0.5f * Projectile.scale;
+            float trailHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
 
-                Vector2 drawPos = trailPositions[i] - Main.screenPosition;
+            ShaderTrailDraw.Draw(
+                trailPositions,
+                trailPositions.Count,
+                progress => ShaderTrailDraw.WithAlpha(
+                    Color.Lerp(new Color(150, 35, 5), new Color(255, 175, 70), progress),
+                    progress * progress * 0.85f),
+                progress => trailHalfWidth * (float)Math.Pow(progress, 1.15f),
+                "CelestialRibbon",
+                effect =>
+                {
+                    SafeShaderDraw.Set(effect, "TrailStartColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailEndColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailPulseSpeed", 6f);
+                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.2f);
+                },
+                trailStartOffset);
 
-                Main.EntitySpriteDraw(
-                    texture,
-                    drawPos,
-                    null,
-                    color,
-                    Projectile.rotation,
-                    origin,
-                    Projectile.scale * scale,
-                    SpriteEffects.None,
-                    0
-                );
-            }
+            return SafeShaderDraw.DrawWithShader("EonBeam",
+                () =>
+                {
+                    Vector2 origin = texture.Size() / 2f;
 
-            Vector2 headPos = Projectile.Center - Main.screenPosition;
-            Main.EntitySpriteDraw(
-                texture,
-                headPos,
-                null,
-                Projectile.GetAlpha(lightColor),
-                Projectile.rotation,
-                origin,
-                Projectile.scale,
-                SpriteEffects.None,
-                0
-            );
-
-            return false;
+                    Vector2 headPos = Projectile.Center - Main.screenPosition;
+                    Main.EntitySpriteDraw(
+                        texture,
+                        headPos,
+                        null,
+                        Projectile.GetAlpha(lightColorCopy),
+                        Projectile.rotation,
+                        origin,
+                        Projectile.scale,
+                        SpriteEffects.None,
+                        0
+                    );
+                },
+                (effect) =>
+                {
+                    SafeShaderDraw.Set(effect, "BeamWidth", 16f);
+                    SafeShaderDraw.Set(effect, "BeamIntensity", 1.6f);
+                    SafeShaderDraw.Set(effect, "BeamCoreColor", new Color(255, 128, 26));
+                    SafeShaderDraw.Set(effect, "BeamEdgeColor", new Color(230, 51, 0));
+                    SafeShaderDraw.Set(effect, "BeamPulseSpeed", 5f);
+                    SafeShaderDraw.Set(effect, "BeamFlickers", 1f);
+                    SafeShaderDraw.Set(effect, "BeamFlickerIntensity", 0.25f);
+                    SafeShaderDraw.Set(effect, "BeamSpinSpeed", 3f);
+                });
         }
 
         public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
         {
-            // Signature debuff.
-            target.AddBuff(ModContent.BuffType<CelestialFlames>(), 300);
-
+            // Full Celestial hit package; Andromeda's Wrath also grants its rage buff.
             if (Projectile.owner >= 0 && Projectile.owner < Main.maxPlayers)
             {
                 Player player = Main.player[Projectile.owner];
                 if (player != null && player.active)
-                {
-                    player.Heal(75);
-                    player.HealEffect(75);
-
-                    // Andromeda's Wrath also grants its own personal buff.
-                    player.AddBuff(ModContent.BuffType<AndromedasRage>(), 300);
-
-                    CelestialHitEffects.ApplyPlayerBiomeBuffs(player);
-                    CelestialHitEffects.ApplyEnemyDebuffs(target);
-                }
+                    CelestialHitEffects.ApplyCelestialHitBundle(player, target, grantAndromedasRage: true);
             }
 
             SoundEngine.PlaySound(SoundID.Item14, Projectile.Center);

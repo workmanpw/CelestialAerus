@@ -44,7 +44,6 @@ namespace CelestialAerus.Items
             Item.rare = ItemRarityID.Purple;
             Item.shoot = ModContent.ProjectileType<TempestBeam>();
             Item.shootSpeed = 28f;
-            Item.prefix = -1;
             Item.noUseGraphic = false;
             Item.channel = false;
         }
@@ -206,12 +205,8 @@ namespace CelestialAerus.Items
 
         public override void OnHitNPC(Player player, NPC target, NPC.HitInfo hit, int damageDone)
         {
-            player.Heal(75);
-            player.AddBuff(ModContent.BuffType<AndromedasRage>(), 300);
-            target.AddBuff(ModContent.BuffType<CelestialFlames>(), 300);
-
-            CelestialHitEffects.ApplyPlayerBiomeBuffs(player);
-            CelestialHitEffects.ApplyEnemyDebuffs(target);
+            // Full Celestial hit package; Celestial Tempest also grants its rage buff.
+            CelestialHitEffects.ApplyCelestialHitBundle(player, target, grantAndromedasRage: true);
         }
     }
 }

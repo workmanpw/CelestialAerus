@@ -45,7 +45,6 @@ namespace CelestialAerus.Items
             Item.rare = ItemRarityID.Purple;
             Item.shoot = ModContent.ProjectileType<AndromedaBeam>();
             Item.shootSpeed = 28f;
-            Item.prefix = -1;
         }
 
         public override bool CanReforge() => true;
@@ -141,13 +140,8 @@ namespace CelestialAerus.Items
 
         public override void OnHitNPC(Player player, NPC target, NPC.HitInfo hit, int damageDone)
         {
-            player.Heal(75);
-            player.AddBuff(ModContent.BuffType<AndromedasRage>(), 300);
-            target.AddBuff(ModContent.BuffType<CelestialFlames>(), 300);
-
-            // Shared helper — same effects the projectiles apply.
-            CelestialHitEffects.ApplyPlayerBiomeBuffs(player);
-            CelestialHitEffects.ApplyEnemyDebuffs(target);
+            // Full Celestial hit package; Andromeda's Wrath also grants its rage buff.
+            CelestialHitEffects.ApplyCelestialHitBundle(player, target, grantAndromedasRage: true);
         }
     }
 }

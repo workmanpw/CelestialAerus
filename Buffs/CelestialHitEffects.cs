@@ -150,5 +150,48 @@ namespace CelestialAerus.AerusBuffs
             target.AddBuff(BuffID.Daybreak, 600);
             target.AddBuff(BuffID.StardustMinion, 600);
         }
+
+        /// <summary>
+        /// The full Celestial weapon hit package: signature debuff, heal,
+        /// flat buff bundle, biome buffs and the shared enemy debuff list.
+        /// Used by every Celestial projectile so Cosmosis, Andromeda's Wrath
+        /// and Celestial Tempest all grant the same effects on hit.
+        /// </summary>
+        public static void ApplyCelestialHitBundle(
+            Player player,
+            NPC target,
+            int celestialFlamesTime = 300,
+            bool grantAndromedasRage = false,
+            int healAmount = 75)
+        {
+            if (target != null && celestialFlamesTime > 0)
+                target.AddBuff(ModContent.BuffType<CelestialFlames>(), celestialFlamesTime);
+
+            if (player == null || !player.active)
+                return;
+
+            if (healAmount > 0)
+            {
+                player.Heal(healAmount);
+                player.HealEffect(healAmount);
+            }
+
+            // Flat buff bundle shared by all Celestial weapons.
+            player.AddBuff(BuffID.Battle, 600);
+            player.AddBuff(BuffID.WellFed, 600);
+            player.AddBuff(BuffID.Wrath, 600);
+            player.AddBuff(BuffID.Rage, 600);
+            player.AddBuff(BuffID.MagicPower, 600);
+            player.AddBuff(BuffID.Ironskin, 600);
+            player.AddBuff(BuffID.RapidHealing, 600);
+
+            if (grantAndromedasRage)
+                player.AddBuff(ModContent.BuffType<AndromedasRage>(), 300);
+
+            ApplyPlayerBiomeBuffs(player);
+
+            if (target != null)
+                ApplyEnemyDebuffs(target);
+        }
     }
 }
