@@ -6,7 +6,7 @@ using Terraria.ModLoader;
 
 namespace CelestialAerus.Players
 {
-    // Charm-wide local immunity frames + storm homing (2026-11-15).
+    // Charm-wide local immunity frames + cascade homing (2026-11-15).
     //
     // LOCAL FRAMES (Peyton's rule: "Charm only."): the charm's own spawns
     // (storm, cascade, weapon minions and their attacks, summoned vanilla
@@ -19,14 +19,9 @@ namespace CelestialAerus.Players
     // equipped. The player's own weapon shots, other mods' projectiles,
     // and everything else keep vanilla iframe rules.
     //
-    // STORM HOMING (Peyton's order: "The projectiles should also auto-aim
-    // and home in on enemies."): the storm and cascade mark their
-    // projectiles with stormHoming = true when they spawn them. This global
-    // then steers those projectiles toward the nearest enemy — a gentle
-    // turn (0.15 rad per AI call, speed preserved), so the steering is
-    // smooth with no sudden sharp turns. Only storm/cascade projectiles
-    // home; the player's own weapon shots and the minions' shots are
-    // untouched.
+    // CASCADE HOMING: cascade projectiles mark themselves when spawned.
+    // This global gently steers them toward the nearest enemy. The storm
+    // volley stays on its evenly spaced radial paths.
     public class CharmGlobalProjectile : GlobalProjectile
     {
         public override bool InstancePerEntity => true;
@@ -47,8 +42,8 @@ namespace CelestialAerus.Players
             ProjectileID.AbigailCounter,          // 970 Abigail reactive counter
         };
 
-        // Set by CharmPlayer when it spawns a storm or cascade projectile.
-        public bool stormHoming;
+        // Set by CharmPlayer when it spawns a cascade projectile.
+        public bool cascadeHoming;
 
         // Cached homing target (re-scanned every 15 AI calls).
         private int homingTarget = -1;
@@ -56,19 +51,27 @@ namespace CelestialAerus.Players
 
         public override bool AppliesToEntity(Projectile entity, bool lateInstantiation)
         {
-            return entity.friendly && entity.owner >= 0 && entity.owner < Main.maxPlayers;
+            // Apply this global to every projectile so that the charm can safely
+            // mark its own storm/cascade shots without the generic lookup ever
+            // throwing for non-charm projectiles. This also prevents
+            // KeyNotFoundException when a projectile lacks a valid owner or a
+            // projectile type isn't marked friendly at the exact instant the
+            // lookup happens.
+            return true;
         }
 
         public override void SetDefaults(Projectile projectile)
         {
             // Defensive reset: the flag starts false for every projectile.
-            // Only the charm's own spawn sites (storm volley, cascade) ever
+            // Only the charm's own spawn site (cascade) ever
             // set it true, so nothing else in the game can home.
-            stormHoming = false;
+            cascadeHoming = false;
 
             // Local frames: ONLY the 9 minion-shot types, ONLY while the
             // charm is equipped. Everything else keeps vanilla rules.
             if (System.Array.IndexOf(MinionShotTypes, projectile.type) < 0)
+                return;
+            if (projectile.owner < 0 || projectile.owner >= Main.maxPlayers)
                 return;
 
             Player owner = Main.player[projectile.owner];
@@ -83,7 +86,7 @@ namespace CelestialAerus.Players
 
         public override void AI(Projectile projectile)
         {
-            if (!stormHoming)
+            if (!cascadeHoming)
                 return;
 
             // Re-scan for a target every 15 AI calls, and whenever the

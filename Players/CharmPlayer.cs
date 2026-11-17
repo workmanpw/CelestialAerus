@@ -5,6 +5,7 @@ using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
 using Terraria.ModLoader;
+using CelestialAerus.AerusBuffs;
 using CelestialAerus.Projectiles;
 
 namespace CelestialAerus.Players
@@ -105,8 +106,7 @@ namespace CelestialAerus.Players
         };
 
         // The storm pool: ~34 iconic vanilla projectiles, all verified IDs
-        // (2026-11-15). StarWrath and Blizzard are sky-spawned above the
-        // target (they fall); everything else flies from the player.
+        // (2026-11-15).
         // Storm pool (2026-11-15, Peyton's rule): EVERY vanilla player
         // projectile that can deal damage to enemies — 340 types, verified
         // against the decompiled ProjectileID enum. Minions and sentries
@@ -478,6 +478,10 @@ namespace CelestialAerus.Players
             if (!charmEquipped)
                 return;
 
+            // Refresh continuously while equipped; the short duration lets
+            // the buff expire promptly when the charm is removed.
+            Player.AddBuff(ModContent.BuffType<CelestialEmpowerment>(), 2);
+
             // 600 HP/s + 600 mana/s: +10 per tick, clamped. Silent — no
             // Heal() effect spam.
             if (Player.statLife < Player.statLifeMax2)
@@ -769,33 +773,15 @@ namespace CelestialAerus.Players
             {
                 int type = StormPool[Main.rand.Next(StormPool.Length)];
 
-                // The storm ALWAYS fires in all directions around the
-                // player (Peyton, 2026-11-15: "Make them fire all around
-                // me!") — a full 360-degree radial spread. The storm
-                // homing (CharmGlobalProjectile) then curves each
-                // projectile toward the nearest enemy, so nothing is
-                // wasted. Aiming the whole volley at the nearest targets
-                // made everything converge in one direction (usually
-                // right, wherever the enemies happened to be).
-                Vector2 spawnPos;
-                Vector2 velocity;
-                if (type == ProjectileID.StarWrath || type == ProjectileID.Blizzard)
-                {
-                    // Sky-spawned: rain down all around the player.
-                    Vector2 aimPoint = Player.Center + new Vector2(Main.rand.Next(-600, 601), 0f);
-                    spawnPos = aimPoint + new Vector2(Main.rand.Next(-200, 201), -600f);
-                    velocity = new Vector2(0f, 12f);
-                }
-                else
-                {
-                    spawnPos = Player.Center + new Vector2(Main.rand.Next(-40, 41), Main.rand.Next(-40, 41));
-                    Vector2 dir = new Vector2(1f, 0f).RotatedBy(MathHelper.TwoPi * i / count + Main.rand.NextFloat(-0.3f, 0.3f));
-                    velocity = dir * Main.rand.NextFloat(14f, 20f);
-                }
+                // Evenly space the volley around the player. Keep storm
+                // projectiles on their radial paths instead of homing toward
+                // one target and making the volley appear one-sided.
+                Vector2 dir = Vector2.UnitX.RotatedBy(MathHelper.TwoPi * i / count);
+                Vector2 velocity = dir * Main.rand.NextFloat(14f, 20f);
 
                 int index = Projectile.NewProjectile(
                     Player.GetSource_FromThis(),
-                    spawnPos, velocity,
+                    Player.Center, velocity,
                     type,
                     CharmDamage, 0f,
                     Player.whoAmI);
@@ -806,7 +792,6 @@ namespace CelestialAerus.Players
                 proj.DamageType = DamageClass.Generic;
                 proj.usesLocalNPCImmunity = true;
                 proj.localNPCHitCooldown = CharmLocalCooldown;
-                proj.GetGlobalProjectile<CharmGlobalProjectile>().stormHoming = true;
             }
 
             return targets.Count > 0;
@@ -864,7 +849,7 @@ namespace CelestialAerus.Players
                 proj.DamageType = DamageClass.Generic;
                 proj.usesLocalNPCImmunity = true;
                 proj.localNPCHitCooldown = CharmLocalCooldown;
-                proj.GetGlobalProjectile<CharmGlobalProjectile>().stormHoming = true;
+                proj.GetGlobalProjectile<CharmGlobalProjectile>().cascadeHoming = true;
             }
         }
     }
