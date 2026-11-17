@@ -5,8 +5,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
-using Terraria.Localization;
-using CelestialAerus.AerusBuffs;
 using CelestialAerus.Projectiles;
 using CelestialAerus;
 using System.Collections.Generic;
@@ -20,9 +18,6 @@ public class AncientHatchet : ModItem
     public override void SetStaticDefaults()
     {
     }
-
-    public override LocalizedText DisplayName => Language.GetOrRegister("Ancient Hatchet");
-    public override LocalizedText Tooltip => Language.GetOrRegister("Chaos in flames\nAn ancient relic that burns with the heat of a legendary forge\nFires homing flaming hatchets that explode on impact and bounce between enemies briefly\nInflicts Celestial Flames");
 
     public override void SetDefaults()
     {
@@ -49,26 +44,6 @@ public class AncientHatchet : ModItem
         return true;
     }
     
-    // Make the hatchet return when hitting an enemy
-    public override void OnHitNPC(Player player, NPC target, NPC.HitInfo hit, int damageDone)
-    {
-        // Apply CelestialFlames debuff to target
-        target.AddBuff(ModContent.BuffType<CelestialFlames>(), 300);
-        
-        // Apply CrushedDefense debuff to target
-        target.AddBuff(ModContent.BuffType<CrushedDefense>(), 600);
-        
-        // This will make the hatchet return after hitting an enemy
-        for (int i = 0; i < Main.maxProjectiles; i++)
-        {
-            Projectile proj = Main.projectile[i];
-            if (proj.active && proj.owner == player.whoAmI && proj.type == Item.shoot)
-            {
-                proj.ai[0] = 1f; // Make the projectile return
-                proj.netUpdate = true;
-            }
-        }
-    }
 
     public override void AddRecipes()
     {
@@ -81,6 +56,6 @@ public class AncientHatchet : ModItem
 
     public override void ModifyTooltips(List<TooltipLine> list)
     {
-        list.Add(new TooltipLine(Mod, "HealTooltip", "Heals 75 life on hit"));
+        list.Add(new TooltipLine(Mod, "HealTooltip", "Heals 50 life on hit"));
     }
 }

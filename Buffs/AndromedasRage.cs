@@ -17,9 +17,6 @@ namespace CelestialAerus.AerusBuffs
             Main.buffNoTimeDisplay[Type] = false;
         }
 
-        public override LocalizedText DisplayName => Language.GetOrRegister("Andromeda's Rage");
-        public override LocalizedText Description => Language.GetOrRegister("The fury of a galaxy fuels your attacks");
-
         public override void Update(Player player, ref int buffIndex)
         {
             // Grant 50% damage increase for 5 seconds (300 ticks)
@@ -28,7 +25,7 @@ namespace CelestialAerus.AerusBuffs
             // Visual effect - golden dust particles
             if (Main.rand.NextBool(8)) // 12.5% chance per tick
             {
-                int dustIndex = Dust.NewDust(
+                Dust dust = Dust.NewDustDirect(
                     player.position,
                     player.width,
                     player.height,
@@ -39,7 +36,8 @@ namespace CelestialAerus.AerusBuffs
                     new Color(255, 215, 0), // Gold color
                     1.2f
                 );
-                Main.dust[dustIndex].noGravity = true;
+                if (dust != null)
+                    dust.noGravity = true;
             }
         }
     }

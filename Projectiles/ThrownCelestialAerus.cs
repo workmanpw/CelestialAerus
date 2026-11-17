@@ -8,33 +8,56 @@ using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.GameContent;
 using Terraria.Audio;
-using Terraria.Localization;
 using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
 {
+    /// <summary>
+    /// Thrown Celestial Aerus (Possessed Hatchet model, 2026-11-15): the
+    /// blade homes like the vanilla Possessed Hatchet (per-axis
+    /// acceleration steering, line-of-sight target search, returns if it
+    /// finds nothing), sticks into the FIRST enemy it hits, and drains it
+    /// with direct damage every half second (real time) until the host
+    /// dies or the stick runs out — then it flies to a fresh enemy and
+    /// sticks again. No more bouncing: stick-on-first-hit.
+    /// Safety (2026-11-15): stuck-host validation on every AI call, DoT
+    /// only on a live host, owner-only retarget decisions, lifetime +
+    /// stick-time caps, NaN guards on steering, null/dead player checks
+    /// on lifesteal.
+    /// </summary>
     public class ThrownCelestialAerus : ModProjectile
     {
-        // --- Constants ---
-        private const int HomingDelay = 15;
-        private const float HomingSpeed = 22f;
-        private const int MaxBounces = 3;
+        // --- Possessed Hatchet homing (AI_003_Boomerang, type 182) ---
+        private const int HomingDelay = 15;      // warm-up before scanning (vanilla: ai[1] > 10)
+        private const float HomingSpeed = 22f;   // TCA speed (vanilla: 12)
+        private const float HomingRange = 1000f; // TCA range (vanilla: 800), straight-line, LOS required
+        // Accel scaled to the TCA's speed: vanilla 0.25 at speed 12 ->
+        // 0.25 * (22/12) = 0.458, so the turn responsiveness matches.
+        private const float HomingAccel = 0.46f;
         private const float ReturnSpeed = 44f;
-        private const int MaxStickTime = 300;
-        private const int DotInterval = 30;
+        private const int MaxStickTime = 300;    // 150 ticks = 2.5 s stuck, then retarget
+        // DoT every half second REAL time: 60 AI calls = 30 ticks at
+        // extraUpdates 1 (AI runs twice per tick).
+        private const int DotInterval = 60;
         private const float RotationSpeed = 0.4f;
 
         private const float ReturnKillDistance = ReturnSpeed * 2f;
 
-        private const int OrbitDuration = 120;
-        private const float OrbitRadius = 120f;
-        private const float OrbitAngularSpeed = MathHelper.TwoPi * 2f / OrbitDuration;
-        private const float OrbitSearchRange = 1000f;
+        // Search range when the blade retargets after its stuck host dies.
+        private const float RetargetSearchRange = 1000f;
 
-        private const int StrikeTimeout = 240;
+        // Total lifespan of the blade: it may stick and retarget
+        // repeatedly until this runs out, then it flies home.
+        // (1800 AI calls ≈ 15 s real time — AI() runs twice per tick.)
+        private const int MaxTotalLifetime = 1800;
+
+        // No bounce spawns (2026-11-15): the blade used to spawn two
+        // TinyHatchets per bounce; removed at Peyton's order. The blade
+        // fights alone now — no clones, no helpers. (Bouncing itself is
+        // also gone: the blade sticks on its first hit.)
 
         // --- Fallback return triggers ---
-        private const int NoTargetTimeout = 120;         // ~1 s
+        private const int NoTargetTimeout = 60;          // ~0.5 s (aligned with the hatchet, 2026-11-15)
         private const int LowTimeReturnThreshold = 60;
 
         // --- Cosmic fire explosion (on stick) ---
@@ -42,23 +65,17 @@ namespace CelestialAerus.Projectiles
         private const float ExplosionRadius = 170f;      // AoE damage radius
         private const float ExplosionDamageMult = 2f;    // burst damage x original
         private const float StickDotDamageMult = 1.5f;   // stuck DoT tick damage x original
-        private const float StrikeDamageMult = 1.5f;     // diving strike hit damage x original
 
         // --- State ---
         private int homingTimer = 0;
         private int noTargetTimer = 0;
-        private int bounceCount = 0;
         private bool isReturning = false;
         private bool isStuck = false;
-        private bool isOrbiting = false;
-        private bool isStriking = false;
-        private bool hasOrbited = false;
+        private int lifetimeTimer = 0;
+        private bool lifetimeExpired = false;
         private int stuckNPCWho = -1;
         private int stickTimer = 0;
         private int dotCounter = 0;
-        private int orbitTimer = 0;
-        private float orbitAngle = 0f;
-        private int orbitTargetWho = -1;
         private float originalDamage = 0f;
         private bool initialized = false;
         private NPC lastHitNPC = null;
@@ -68,14 +85,16 @@ namespace CelestialAerus.Projectiles
         private int explosionTimer = 0;
         private int explosionSeed = 0;
 
-        private readonly List<Vector2> trailPositions = new List<Vector2>();
+        private readonly TrailRecorder trail = new TrailRecorder(MaxTrailPoints);
         private const int MaxTrailPoints = 28;
 
         public override string Texture => "CelestialAerus/Textures/CelestialAerus";
-        public override LocalizedText DisplayName => Language.GetOrRegister("Celestial Aerus");
+        // DisplayName comes from the localization file
+        // (Mods.CelestialAerus.Projectiles.ThrownCelestialAerus.DisplayName).
 
         public override void SetDefaults()
         {
+            // Hitbox matches the 120x120 drawn sprite (scale 1).
             Projectile.width = 120;
             Projectile.height = 120;
             Projectile.scale = 1f;
@@ -86,7 +105,7 @@ namespace CelestialAerus.Projectiles
             Projectile.penetrate = -1;
 
             // Fusion with the old version: a longer life (old 600, current 300)
-            // so it has time to bounce, stick, orbit and strike.
+            // so it has time to stick, drain, and retarget repeatedly.
             Projectile.timeLeft = 450;
             Projectile.extraUpdates = 1;
 
@@ -128,6 +147,17 @@ namespace CelestialAerus.Projectiles
                 initialized = true;
             }
 
+            // Total lifespan: the blade may stick and retarget repeatedly,
+            // but when its lifespan ends it flies home to the player
+            // (whatever state it is in) instead of vanishing.
+            lifetimeTimer++;
+            if (lifetimeTimer >= MaxTotalLifetime && !lifetimeExpired)
+            {
+                lifetimeExpired = true;
+                StartReturning();
+                Projectile.netUpdate = true;
+            }
+
             Projectile.rotation += RotationSpeed;
             if (Projectile.rotation > MathHelper.TwoPi)
                 Projectile.rotation -= MathHelper.TwoPi;
@@ -137,14 +167,12 @@ namespace CelestialAerus.Projectiles
 
             if (!isStuck)
             {
-                trailPositions.Add(Projectile.Center);
-                if (trailPositions.Count > MaxTrailPoints)
-                    trailPositions.RemoveAt(0);
+                trail.Record(Projectile.Center);
                 SpawnTrailDust();
             }
 
             // Cosmic fire explosion: runs its course even if the stuck enemy
-            // dies mid-burst and the blade bounces to a new target.
+            // dies mid-burst and the blade flies to a new target.
             if (explosionActive)
             {
                 explosionTimer++;
@@ -155,8 +183,6 @@ namespace CelestialAerus.Projectiles
             }
 
             if (isStuck)     { HandleStuck();       return; }
-            if (isOrbiting)  { HandleOrbit(player); return; }
-            if (isStriking)  { HandleStrike();      return; }
             if (isReturning) { HandleReturn(player);return; }
 
             HandleHoming();
@@ -173,49 +199,108 @@ namespace CelestialAerus.Projectiles
             homingTimer++;
             if (homingTimer < HomingDelay) return;
 
-            NPC target = null;
-            float minDist = 1000f;
+            // Possessed Hatchet homing (AI_003_Boomerang, type 182): re-scan
+            // every AI call for the nearest chasable enemy within range
+            // that the blade can SEE (line of sight required — no homing
+            // through walls). No lock-on, no prediction: vanilla re-scans
+            // and aims at the target's current center.
+            NPC homingTarget = null;
+            float minDist = HomingRange;
             foreach (NPC npc in Main.npc)
             {
-                if (npc.CanBeChasedBy(Projectile) && npc != lastHitNPC)
+                if (!npc.CanBeChasedBy(Projectile))
+                    continue;
+                float d = Vector2.Distance(Projectile.Center, npc.Center);
+                if (d < minDist && Collision.CanHit(Projectile.position, Projectile.width, Projectile.height,
+                        npc.position, npc.width, npc.height))
                 {
-                    float d = Vector2.Distance(Projectile.Center, npc.Center);
-                    if (d < minDist) { minDist = d; target = npc; }
+                    minDist = d;
+                    homingTarget = npc;
                 }
             }
 
-            if (target != null)
+            // Desired velocity: toward the target at HomingSpeed, or
+            // straight ahead at HomingSpeed if there's no target (vanilla
+            // aims at position + velocity * 100 when targetless — same
+            // as holding course and speed).
+            Vector2 desired;
+            if (homingTarget != null)
             {
                 noTargetTimer = 0;
-                Vector2 dir = target.Center - Projectile.Center;
-                // Fusion with the old version: smooth steering (old lerped at
-                // 0.15, current snapped the velocity). 0.35 tracks hard but
-                // steers instead of snapping, so it reads as a thrown blade.
-                Projectile.velocity = Vector2.Lerp(
-                    Projectile.velocity,
-                    dir.SafeNormalize(Vector2.Zero) * HomingSpeed,
-                    0.35f);
+                Vector2 toTarget = homingTarget.Center - Projectile.Center;
+                float dist = toTarget.Length();
+                if (dist > 0.001f)
+                    desired = toTarget / dist * HomingSpeed;
+                else
+                    desired = Projectile.velocity; // already on top of it
             }
             else
             {
+                desired = Projectile.velocity.SafeNormalize(Vector2.Zero) * HomingSpeed;
+                // Possessed Hatchet rule: no target for too long -> fly
+                // home (vanilla sets ai[0] = 1, the boomerang return).
                 noTargetTimer++;
                 if (noTargetTimer >= NoTargetTimeout)
+                {
                     StartReturning();
+                    return;
+                }
+            }
+
+            // Per-axis acceleration steering (possessed hatchet, copied
+            // exactly): each axis accelerates toward the desired velocity,
+            // and an axis that must REVERSE sign gets 3x total acceleration
+            // (1x + 2x) — fast turnaround, still smooth, never a snap.
+            if (Projectile.velocity.X < desired.X)
+            {
+                Projectile.velocity.X += HomingAccel;
+                if (Projectile.velocity.X < 0f && desired.X > 0f)
+                    Projectile.velocity.X += HomingAccel * 2f;
+            }
+            else if (Projectile.velocity.X > desired.X)
+            {
+                Projectile.velocity.X -= HomingAccel;
+                if (Projectile.velocity.X > 0f && desired.X < 0f)
+                    Projectile.velocity.X -= HomingAccel * 2f;
+            }
+            if (Projectile.velocity.Y < desired.Y)
+            {
+                Projectile.velocity.Y += HomingAccel;
+                if (Projectile.velocity.Y < 0f && desired.Y > 0f)
+                    Projectile.velocity.Y += HomingAccel * 2f;
+            }
+            else if (Projectile.velocity.Y > desired.Y)
+            {
+                Projectile.velocity.Y -= HomingAccel;
+                if (Projectile.velocity.Y > 0f && desired.Y < 0f)
+                    Projectile.velocity.Y -= HomingAccel * 2f;
+            }
+
+            // NaN guard: if steering ever produced a non-finite velocity
+            // (e.g. a zero-distance target slipped through), fall back to
+            // a safe straight-down drift instead of a frozen/corrupt blade.
+            if (float.IsNaN(Projectile.velocity.X) || float.IsNaN(Projectile.velocity.Y)
+                || float.IsInfinity(Projectile.velocity.X) || float.IsInfinity(Projectile.velocity.Y))
+            {
+                Projectile.velocity = new Vector2(0f, HomingSpeed * 0.5f);
             }
         }
 
         private void HandleStuck()
         {
+            // SAFETY: validate the host on EVERY call before touching it.
+            // An out-of-range index, an inactive NPC, or a dead NPC all
+            // mean the same thing: find a fresh enemy (or fly home).
             if (stuckNPCWho < 0 || stuckNPCWho >= Main.maxNPCs)
             {
-                TryBounceToNewEnemy();
+                TryFlyToNewEnemy();
                 return;
             }
 
             NPC target = Main.npc[stuckNPCWho];
             if (!target.active || target.life <= 0)
             {
-                TryBounceToNewEnemy();
+                TryFlyToNewEnemy();
                 return;
             }
 
@@ -224,6 +309,10 @@ namespace CelestialAerus.Projectiles
             dotCounter++;
             if (dotCounter % DotInterval == 0)
             {
+                // Direct damage every half second (real time): DotInterval
+                // is 60 AI calls = 30 ticks at extraUpdates 1. Owner-only
+                // so the damage applies once in multiplayer. The host was
+                // re-validated above, so it is alive here.
                 if (Projectile.owner == Main.myPlayer)
                 {
                     // Extra damage while stuck: the DoT tick hits 1.5x.
@@ -250,24 +339,29 @@ namespace CelestialAerus.Projectiles
 
             stickTimer++;
             if (stickTimer >= MaxStickTime)
-                TryBounceToNewEnemy();
+            {
+                // Stick ran out (host still alive): fly to a fresh enemy.
+                TryFlyToNewEnemy();
+            }
         }
 
-        // The blade's target died (or its stick ran out): instead of flying
-        // home, bounce to a fresh enemy and keep fighting. Only returns
-        // when there is nothing left to hit.
-        private void TryBounceToNewEnemy()
+        // The blade's host died (or its stick ran out): instead of flying
+        // home, fly to a fresh enemy and stick again. Only returns when
+        // there is nothing left to hit.
+        // SAFETY: owner-only decision. If every client picked its own
+        // target, the blade's state would diverge; the owner's choice is
+        // synced via netUpdate and the other clients follow it. A
+        // non-owner client whose host died just waits for the sync (the
+        // blade stays glued to the corpse for a few frames, then flies).
+        private void TryFlyToNewEnemy()
         {
+            if (Projectile.owner != Main.myPlayer)
+                return;
+
             NPC stuck = (stuckNPCWho >= 0 && stuckNPCWho < Main.maxNPCs) ? Main.npc[stuckNPCWho] : null;
-            NPC target = null;
-            float minDist = OrbitSearchRange;
-            foreach (NPC npc in Main.npc)
-            {
-                if (npc == stuck) continue;
-                if (!npc.CanBeChasedBy(Projectile)) continue;
-                float d = Vector2.Distance(Projectile.Center, npc.Center);
-                if (d < minDist) { minDist = d; target = npc; }
-            }
+            // Exclude BOTH the stuck host AND the last enemy hit, so the
+            // blade never ping-pongs between two enemies.
+            NPC target = HomingHelper.FindNearestTarget(Projectile, Projectile.Center, RetargetSearchRange, stuck, lastHitNPC);
 
             if (target == null)
             {
@@ -279,8 +373,8 @@ namespace CelestialAerus.Projectiles
             stuckNPCWho = -1;
             stickTimer = 0;
             dotCounter = 0;
-            bounceCount = 0;
-            lastHitNPC = null;
+            // lastHitNPC is KEPT (not nulled) so the retarget exclusion
+            // above keeps working on the next flight too.
             homingTimer = 0;
             noTargetTimer = 0;
             Projectile.damage = (int)originalDamage;
@@ -289,6 +383,8 @@ namespace CelestialAerus.Projectiles
             // would let it chase an uncatchable enemy forever.)
             Projectile.timeLeft = 300;
             Projectile.tileCollide = false;
+            // Launch from a standstill (velocity is Zero while stuck), so
+            // this is a clean launch in the target's direction, not a turn.
             Vector2 dir = target.Center - Projectile.Center;
             Projectile.velocity = dir.SafeNormalize(Vector2.Zero) * HomingSpeed;
             Projectile.netUpdate = true;
@@ -301,18 +397,7 @@ namespace CelestialAerus.Projectiles
 
             if (dist <= ReturnKillDistance)
             {
-                if (!hasOrbited)
-                {
-                    isReturning = false;
-                    isOrbiting = true;
-                    hasOrbited = true;
-                    orbitTimer = 0;
-                    orbitAngle = (Projectile.Center - player.Center).ToRotation();
-                    Projectile.velocity = Vector2.Zero;
-                    Projectile.netUpdate = true;
-                    return;
-                }
-
+                // Home: the blade came back and disappears.
                 Projectile.Kill();
                 return;
             }
@@ -322,127 +407,47 @@ namespace CelestialAerus.Projectiles
             Projectile.velocity = toPlayer.SafeNormalize(Vector2.Zero) * ReturnSpeed;
         }
 
-        private void HandleOrbit(Player player)
-        {
-            orbitTimer++;
-            orbitAngle += OrbitAngularSpeed;
-
-            Projectile.Center = player.Center + orbitAngle.ToRotationVector2() * OrbitRadius;
-            Projectile.velocity = Vector2.Zero;
-
-            // Orbit sparkle — alternate rainbow flame and drifting crystal.
-            if (Main.rand.NextBool(2))
-            {
-                int id = Main.rand.NextBool() ? DustID.RainbowTorch : DustID.PurpleCrystalShard;
-                int d = Dust.NewDust(Projectile.position, Projectile.width, Projectile.height,
-                    id, 0f, 0f, 0, default, 1.5f);
-                Main.dust[d].noGravity = true;
-                Main.dust[d].scale = 0.7f;
-                Main.dust[d].velocity = Main.rand.NextVector2Circular(2f, 2f) * 0.5f;
-                if (id == DustID.PurpleCrystalShard)
-                    Main.dust[d].color = CosmicRainbow(Main.rand.NextFloat() * 6f);
-            }
-
-            if (orbitTimer < OrbitDuration) return;
-
-            NPC target = FindNearestEnemy(OrbitSearchRange);
-            if (target == null)
-            {
-                isOrbiting = false;
-                StartReturning();
-                return;
-            }
-
-            orbitTargetWho = target.whoAmI;
-            isOrbiting = false;
-            isStriking = true;
-            homingTimer = 0;
-            // The diving strike hits harder than a normal pass.
-            Projectile.damage = (int)(originalDamage * StrikeDamageMult);
-            Projectile.netUpdate = true;
-        }
-
-        private void HandleStrike()
-        {
-            homingTimer++;
-            if (homingTimer >= StrikeTimeout)
-            {
-                isStriking = false;
-                StartReturning();
-                return;
-            }
-
-            if (orbitTargetWho < 0 || orbitTargetWho >= Main.maxNPCs)
-            {
-                isStriking = false;
-                StartReturning();
-                return;
-            }
-
-            NPC target = Main.npc[orbitTargetWho];
-            if (!target.active || target.life <= 0)
-            {
-                isStriking = false;
-                StartReturning();
-                return;
-            }
-
-            Vector2 dir = target.Center - Projectile.Center;
-            Projectile.velocity = dir.SafeNormalize(Vector2.Zero) * HomingSpeed;
-        }
-
         public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
         {
             if (isStuck) return;
 
             Player player = Owner;
 
-            if (!isReturning && !isOrbiting && !isStriking)
+            // Lifesteal on plain hits only — no heal while returning or
+            // stuck (same pattern as the Ancient Hatchet). SAFETY: the
+            // player can die between AI() and the collision check, so
+            // guard against a null/dead owner before touching statLife.
+            if (!isReturning && player != null && player.active && !player.dead)
             {
-                int lifeStealAmount = 50;
+                int lifeStealAmount = 125;
                 if (player.statLife + lifeStealAmount > player.statLifeMax2)
                     lifeStealAmount = player.statLifeMax2 - player.statLife;
                 player.Heal(lifeStealAmount);
                 player.HealEffect(lifeStealAmount);
             }
 
-            SoundEngine.PlaySound(SoundID.Item14, Projectile.Center);
-            SpawnExplosionDust();
+            // No explosion feedback here: the explosion sound and dust burst
+            // belong to the stick-triggered explosion only (TriggerExplosion).
 
-            if (isStriking)
+            if (!isReturning)
             {
-                isStriking = false;
-                orbitTargetWho = -1;
-                StartReturning();
-                Projectile.netUpdate = true;
-                return;
-            }
+                // Stick on the FIRST hit (2026-11-15): no more bouncing.
+                // The blade embeds in the enemy, drains it with DoT, and
+                // flies to a fresh enemy when the host dies (HandleStuck).
+                isStuck = true;
+                trail.Clear();
+                stuckNPCWho = target.whoAmI;
+                lastHitNPC = target;
+                stickTimer = 0;
+                dotCounter = 0;
+                Projectile.velocity = Vector2.Zero;
+                Projectile.timeLeft = 9999;
+                Projectile.damage = 0;
+                Projectile.tileCollide = false;
+                target.AddBuff(BuffID.Daybreak, 300);
 
-            if (!isReturning && !isOrbiting)
-            {
-                if (bounceCount >= MaxBounces - 1)
-                {
-                    isStuck = true;
-                    trailPositions.Clear();
-                    stuckNPCWho = target.whoAmI;
-                    stickTimer = 0;
-                    dotCounter = 0;
-                    Projectile.velocity = Vector2.Zero;
-                    Projectile.timeLeft = 9999;
-                    Projectile.damage = 0;
-                    Projectile.tileCollide = false;
-                    target.AddBuff(BuffID.Daybreak, 300);
-
-                    // Cosmic fire explosion: the blade erupts where it sticks.
-                    TriggerExplosion();
-                }
-                else
-                {
-                    bounceCount++;
-                    homingTimer = 0;
-                    noTargetTimer = 0;
-                    lastHitNPC = target;
-                }
+                // Cosmic fire explosion: the blade erupts where it sticks.
+                TriggerExplosion();
             }
 
             Projectile.netUpdate = true;
@@ -454,8 +459,6 @@ namespace CelestialAerus.Projectiles
 
             isReturning = true;
             isStuck = false;
-            isOrbiting = false;
-            isStriking = false;
             Projectile.damage = (int)(originalDamage * 0.25f);
             Projectile.timeLeft = 9999;
             Projectile.netUpdate = true;
@@ -467,19 +470,6 @@ namespace CelestialAerus.Projectiles
                 if (toPlayer != Vector2.Zero)
                     Projectile.velocity = toPlayer.SafeNormalize(Vector2.Zero) * ReturnSpeed;
             }
-        }
-
-        private NPC FindNearestEnemy(float range)
-        {
-            NPC best = null;
-            float bestDist = range;
-            foreach (NPC npc in Main.npc)
-            {
-                if (!npc.CanBeChasedBy(Projectile)) continue;
-                float d = Vector2.Distance(Projectile.Center, npc.Center);
-                if (d < bestDist) { bestDist = d; best = npc; }
-            }
-            return best;
         }
 
         // Smooth sine-based rainbow — used for the sprite tint and the light
@@ -546,7 +536,7 @@ namespace CelestialAerus.Projectiles
         {
             if (Main.netMode == NetmodeID.Server) return;
 
-            // A compact, short-lived burst so repeated hits do not leave a cloud behind.
+            // A compact, short-lived burst for the stick explosion.
             for (int i = 0; i < 18; i++)
             {
                 int dust = Dust.NewDust(Projectile.position, Projectile.width, Projectile.height,
@@ -607,6 +597,7 @@ namespace CelestialAerus.Projectiles
             }
 
             SoundEngine.PlaySound(SoundID.Item14, Projectile.Center);
+            SpawnExplosionDust();
             SpawnExplosionEmbers(16);
         }
 
@@ -637,18 +628,13 @@ namespace CelestialAerus.Projectiles
         {
             writer.Write(isStuck);
             writer.Write(isReturning);
-            writer.Write(isOrbiting);
-            writer.Write(isStriking);
-            writer.Write(hasOrbited);
+            writer.Write((short)lifetimeTimer);
+            writer.Write(lifetimeExpired);
             writer.Write((short)stuckNPCWho);
-            writer.Write((short)orbitTargetWho);
             writer.Write((short)stickTimer);
             writer.Write((short)dotCounter);
-            writer.Write((byte)bounceCount);
             writer.Write((short)homingTimer);
             writer.Write((short)noTargetTimer);
-            writer.Write((short)orbitTimer);
-            writer.Write(orbitAngle);
             writer.Write(originalDamage);
             writer.Write(initialized);
             writer.Write(explosionActive);
@@ -661,18 +647,13 @@ namespace CelestialAerus.Projectiles
         {
             isStuck = reader.ReadBoolean();
             isReturning = reader.ReadBoolean();
-            isOrbiting = reader.ReadBoolean();
-            isStriking = reader.ReadBoolean();
-            hasOrbited = reader.ReadBoolean();
+            lifetimeTimer = reader.ReadInt16();
+            lifetimeExpired = reader.ReadBoolean();
             stuckNPCWho = reader.ReadInt16();
-            orbitTargetWho = reader.ReadInt16();
             stickTimer = reader.ReadInt16();
             dotCounter = reader.ReadInt16();
-            bounceCount = reader.ReadByte();
             homingTimer = reader.ReadInt16();
             noTargetTimer = reader.ReadInt16();
-            orbitTimer = reader.ReadInt16();
-            orbitAngle = reader.ReadSingle();
             originalDamage = reader.ReadSingle();
             initialized = reader.ReadBoolean();
             explosionActive = reader.ReadBoolean();
@@ -808,8 +789,8 @@ namespace CelestialAerus.Projectiles
             float trailHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
 
             ShaderTrailDraw.Draw(
-                trailPositions,
-                trailPositions.Count,
+                trail.Positions,
+                trail.Count,
                 progress => ShaderTrailDraw.WithAlpha(Color.White, progress * progress * 0.9f),
                 progress => trailHalfWidth * (float)Math.Pow(progress, 1.15f),
                 "CelestialRibbon",

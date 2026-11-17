@@ -6,31 +6,23 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.ModLoader;
-using Terraria.Localization;
 using Terraria.Audio;
-using CelestialAerus.AerusBuffs;
 using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
 {
     public class AndromedaSeeker : ModProjectile
     {
-        private readonly List<Vector2> trailPositions = new List<Vector2>();
+        private readonly TrailRecorder trail = new TrailRecorder(MaxTrail);
         private const int MaxTrail = 15;
 
-        public override void SetStaticDefaults()
-        {
-            ProjectileID.Sets.TrailCacheLength[Type] = MaxTrail;
-            ProjectileID.Sets.TrailingMode[Type] = 0;
-        }
-
-        public override LocalizedText DisplayName => Language.GetOrRegister("Andromeda Seeker");
         public override string Texture => "CelestialAerus/Textures/AndromedasWrath";
 
         public override void SetDefaults()
         {
-            Projectile.width = 76;
-            Projectile.height = 76;
+            // Hitbox matches the drawn sprite: 180x180 texture at 0.5 scale.
+            Projectile.width = 90;
+            Projectile.height = 90;
             Projectile.scale = 0.5f;
             Projectile.friendly = true;
             Projectile.hostile = false;
@@ -45,9 +37,7 @@ namespace CelestialAerus.Projectiles
 
         public override void AI()
         {
-            trailPositions.Add(Projectile.Center);
-            if (trailPositions.Count > MaxTrail)
-                trailPositions.RemoveAt(0);
+            trail.Record(Projectile.Center);
 
             // Purple-pink light.
             Lighting.AddLight(Projectile.Center, 0.7f, 0.1f, 0.7f);
@@ -73,9 +63,9 @@ namespace CelestialAerus.Projectiles
 
             if (target != null)
             {
-                Vector2 toTarget = target.Center - Projectile.Center;
-                toTarget.Normalize();
-                Projectile.velocity = (Projectile.velocity * 20f + toTarget * homingSpeed) / 21f;
+                Vector2 toTarget = (target.Center - Projectile.Center).SafeNormalize(Vector2.Zero);
+                if (toTarget != Vector2.Zero)
+                    Projectile.velocity = (Projectile.velocity * 20f + toTarget * homingSpeed) / 21f;
             }
 
             Projectile.rotation += 0.2f;
@@ -88,11 +78,15 @@ namespace CelestialAerus.Projectiles
             // Start the ribbon at the sword's rear edge and give it the
             // projectile's full width at the head, tapering to a point.
             float trailStartOffset = texture.Height * 0.5f * Projectile.scale;
-            float trailHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
+            // Fixed trail width, decoupled from the hitbox (2026-11-14):
+            // the hitbox now matches the drawn sprite, but the ribbon keeps
+            // its tuned pre-fix-pass width. VertexStrip treats this as a
+            // half-width.
+            float trailHalfWidth = 19f;
 
             ShaderTrailDraw.Draw(
-                trailPositions,
-                trailPositions.Count,
+                trail.Positions,
+                trail.Count,
                 progress =>
                 {
                     float hue = (Main.GlobalTimeWrappedHourly * 0.3f + progress * 0.18f) % 1f;
@@ -142,12 +136,20 @@ namespace CelestialAerus.Projectiles
 
         public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
         {
-            // Full Celestial hit package; Andromeda's Wrath also grants its rage buff.
+            // Heal only: the Celestial hit bundle (buffs/debuffs) was
+            // removed temporarily — Peyton has a better idea coming.
+            // The 75 heal stays so the tooltip remains true.
             if (Projectile.owner >= 0 && Projectile.owner < Main.maxPlayers)
             {
                 Player player = Main.player[Projectile.owner];
                 if (player != null && player.active)
-                    CelestialHitEffects.ApplyCelestialHitBundle(player, target, grantAndromedasRage: true);
+                {
+                    int healAmount = 75;
+                    if (player.statLife + healAmount > player.statLifeMax2)
+                        healAmount = player.statLifeMax2 - player.statLife;
+                    player.Heal(healAmount);
+                    player.HealEffect(healAmount);
+                }
             }
 
             SoundEngine.PlaySound(SoundID.Item14, Projectile.Center);

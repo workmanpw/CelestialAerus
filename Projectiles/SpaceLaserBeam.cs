@@ -28,13 +28,15 @@ public class SpaceLaserBeam : ModProjectile
         Projectile.tileCollide = false;
     }
 
+    // Standard collision must not damage NPCs: HitTargets() already strikes
+    // them manually every 2 ticks.
+    public override bool? CanHitNPC(NPC target) => false;
+
     public override void AI()
     {
-        float cursorX = Main.MouseWorld.X;
-        float cursorY = Main.MouseWorld.Y;
-        
-        Projectile.position.X = cursorX - Projectile.width / 2;
-        Projectile.position.Y = cursorY - 1500;
+        // The beam stays where the item spawned it (at the cursor). It must NOT
+        // track Main.MouseWorld here: that is per-client (every player would see
+        // the beam at a different spot) and (0,0) on a dedicated server.
 
         if (Main.netMode != NetmodeID.Server)
         {
@@ -89,49 +91,61 @@ public class SpaceLaserBeam : ModProjectile
             Projectile.width,
             Projectile.height);
 
-        for (int i = 0; i < Main.maxNPCs; i++)
+        // NPCs: owner only — AI() runs on every client, and StrikeNPC
+        // applies damage from each caller, which would multiply the
+        // damage in multiplayer.
+        if (Projectile.owner == Main.myPlayer)
         {
-            NPC npc = Main.npc[i];
-            if (npc.active && beamRect.Intersects(npc.Hitbox))
+            for (int i = 0; i < Main.maxNPCs; i++)
             {
-                npc.StrikeNPC(new NPC.HitInfo
+                NPC npc = Main.npc[i];
+                if (!npc.active)
+                    continue;
+                if (!npc.CanBeChasedBy(Projectile))
+                    continue;
+                if (beamRect.Intersects(npc.Hitbox))
                 {
-                    Damage = Projectile.damage,
-                    Knockback = 15f,
-                    HitDirection = 0,
-                    Crit = false,
-                    DamageType = DamageClass.Magic
-                });
-                SoundEngine.PlaySound(new SoundStyle("CelestialAerus/Sounds/SuperBoom"), npc.Center);
+                    npc.StrikeNPC(new NPC.HitInfo
+                    {
+                        Damage = Projectile.damage,
+                        Knockback = 15f,
+                        HitDirection = 0,
+                        Crit = false,
+                        DamageType = DamageClass.Magic
+                    });
+                    SoundEngine.PlaySound(new SoundStyle("CelestialAerus/Sounds/SuperBoom"), npc.Center);
+                }
             }
         }
 
-        for (int i = 0; i < Main.maxPlayers; i++)
+        // Players: every client checks ONLY its own local player. Player
+        // HP is server-authoritative, so Hurt/KillMe only sync when
+        // called on the local player — the old owner-only loop called
+        // Hurt on remote players, which silently did nothing.
+        Player localPlayer = Main.LocalPlayer;
+        if (localPlayer == null || !localPlayer.active || localPlayer.dead
+            || !beamRect.Intersects(localPlayer.Hitbox))
+            return;
+
+        PlayerDeathReason deathReason =
+            PlayerDeathReason.ByProjectile(Projectile.owner, Projectile.type);
+
+        if (localPlayer.whoAmI == Projectile.owner)
         {
-            Player player = Main.player[i];
-            if (!player.active || player.dead || !beamRect.Intersects(player.Hitbox))
-                continue;
-
-            PlayerDeathReason deathReason =
-                PlayerDeathReason.ByProjectile(Projectile.owner, Projectile.type);
-
-            if (i == Projectile.owner && i == Main.myPlayer)
-            {
-                // Pointing the remote at yourself is fatal, no matter what:
-                // bypass Journey godmode, immunity frames, dodges, etc.
-                bool wasInGodMode = player.creativeGodMode;
-                player.creativeGodMode = false;
-                player.statLife = 0;
-                player.KillMe(deathReason, Projectile.damage, 0, false);
-                player.creativeGodMode = wasInGodMode;
-            }
-            else
-            {
-                player.Hurt(deathReason, Projectile.damage, 0, true);
-            }
-
-            SoundEngine.PlaySound(new SoundStyle("CelestialAerus/Sounds/SuperBoom"), player.Center);
+            // Pointing the remote at yourself is fatal, no matter what:
+            // bypass Journey godmode, immunity frames, dodges, etc.
+            bool wasInGodMode = localPlayer.creativeGodMode;
+            localPlayer.creativeGodMode = false;
+            localPlayer.statLife = 0;
+            localPlayer.KillMe(deathReason, Projectile.damage, 0, false);
+            localPlayer.creativeGodMode = wasInGodMode;
         }
+        else
+        {
+            localPlayer.Hurt(deathReason, Projectile.damage, 0, false);
+        }
+
+        SoundEngine.PlaySound(new SoundStyle("CelestialAerus/Sounds/SuperBoom"), localPlayer.Center);
     }
 
     // The beam texture is intentionally not drawn; the visible beam is

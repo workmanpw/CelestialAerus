@@ -4,7 +4,6 @@ using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
 using Terraria.ModLoader;
-using Terraria.Localization;
 using CelestialAerus.Projectiles;
 
 namespace CelestialAerus.Items
@@ -15,12 +14,6 @@ namespace CelestialAerus.Items
         public override string Texture => "Terraria/Images/Item_" + ItemID.CopperShortsword;
 
         public override void SetStaticDefaults() { }
-
-        public override LocalizedText DisplayName => Language.GetOrRegister("Test Weapon");
-        public override LocalizedText Tooltip => Language.GetOrRegister(
-            "Experimental test weapon\n" +
-            "Fires homing rainbow bolts that pass through tiles"
-        );
 
         public override void SetDefaults()
         {
@@ -50,32 +43,20 @@ namespace CelestialAerus.Items
             int projDamage = (int)(damage * 0.25f);
 
             // Main bolt, fired along the swing.
-            int projectile = Projectile.NewProjectile(source, position.X, position.Y, velocity.X, velocity.Y, type, projDamage, knockback, Main.myPlayer);
-            Main.projectile[projectile].timeLeft = 160;
-            Main.projectile[projectile].tileCollide = false;
+            int projectile = Projectile.NewProjectile(source, position.X, position.Y, velocity.X, velocity.Y, type, projDamage, knockback, player.whoAmI);
+            if (projectile >= 0 && projectile < Main.maxProjectiles)
+            {
+                Main.projectile[projectile].timeLeft = 160;
+                Main.projectile[projectile].tileCollide = false;
+            }
 
             // Spread seekers.
             float num72 = Main.rand.Next(22, 30);
-            Vector2 vector2 = player.RotatedRelativePoint(player.MountedCenter, true);
-            float num78 = (float)Main.mouseX + Main.screenPosition.X + vector2.X;
-            float num79 = (float)Main.mouseY + Main.screenPosition.Y + vector2.Y;
-            if (player.gravDir == -1f)
-            {
-                num79 = Main.screenPosition.Y + (float)Main.screenHeight + (float)Main.mouseY + vector2.Y;
-            }
-            float num80 = (float)Math.Sqrt((double)(num78 * num78 + num79 * num79));
-            if ((float.IsNaN(num78) && float.IsNaN(num79)) || (num78 == 0f && num79 == 0f))
-            {
-                num78 = (float)player.direction;
-                num79 = 0f;
-                num80 = num72;
-            }
-            else
-            {
-                num80 = num72 / num80;
-            }
-            num78 *= num80;
-            num79 *= num80;
+            // vector2 / num78 / num79 / num80 are assigned fresh inside
+            // the loop before any use; the old pre-loop computation of
+            // them was dead and was removed 2026-11-14.
+            Vector2 vector2;
+            float num78, num79, num80;
             int num107 = 4;
             for (int num108 = 0; num108 < num107; num108++)
             {
@@ -88,6 +69,7 @@ namespace CelestialAerus.Items
                 num78 = (float)Main.mouseX + Main.screenPosition.X - vector2.X;
                 num79 = (float)Main.mouseY + Main.screenPosition.Y - vector2.Y;
                 num80 = (float)Math.Sqrt((double)(num78 * num78 + num79 * num79));
+                if (num80 == 0f) num80 = num72; // Cursor exactly on the spawn point: avoid dividing by zero.
                 num80 = num72 / num80;
                 num78 *= num80;
                 num79 *= num80;
@@ -97,7 +79,10 @@ namespace CelestialAerus.Items
                 int projectileFire = Projectile.NewProjectile(
                     source, vector2.X, vector2.Y, speedX4, speedY5,
                     type, projDamage, knockback, player.whoAmI);
-                Main.projectile[projectileFire].timeLeft = 80;
+                if (projectileFire >= 0 && projectileFire < Main.maxProjectiles)
+                {
+                    Main.projectile[projectileFire].timeLeft = 80;
+                }
             }
             return false;
         }

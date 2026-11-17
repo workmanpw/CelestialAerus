@@ -6,32 +6,24 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.ModLoader;
-using Terraria.Localization;
 using Terraria.Audio;
-using CelestialAerus.AerusBuffs;
 using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
 {
     public class CosmoBeam : ModProjectile
     {
-        private readonly List<Vector2> trailPositions = new List<Vector2>();
+        private readonly TrailRecorder trail = new TrailRecorder(MaxTrail);
         private const int MaxTrail = 20;
 
         // Local spin accumulator so rotation never snaps when Main.time wraps.
         private float spin;
 
-        public override void SetStaticDefaults()
-        {
-            ProjectileID.Sets.TrailCacheLength[Type] = MaxTrail;
-            ProjectileID.Sets.TrailingMode[Type] = 0;
-        }
-
-        public override LocalizedText DisplayName => Language.GetOrRegister("Cosmo Beam");
         public override string Texture => "CelestialAerus/Textures/Cosmosis";
 
         public override void SetDefaults()
         {
+            // Hitbox already matches the drawn sprite: 76x76 texture at scale 1.
             Projectile.width = 76;
             Projectile.height = 76;
             Projectile.scale = 1f;
@@ -48,9 +40,7 @@ namespace CelestialAerus.Projectiles
 
         public override void AI()
         {
-            trailPositions.Add(Projectile.Center);
-            if (trailPositions.Count > MaxTrail)
-                trailPositions.RemoveAt(0);
+            trail.Record(Projectile.Center);
 
             // Cosmic purple/blue light.
             Lighting.AddLight(Projectile.Center, 0.4f, 0.2f, 0.8f);
@@ -81,9 +71,9 @@ namespace CelestialAerus.Projectiles
 
             if (target != null)
             {
-                Vector2 toTarget = target.Center - Projectile.Center;
-                toTarget.Normalize();
-                Projectile.velocity = (Projectile.velocity * 20f + toTarget * homingSpeed) / 21f;
+                Vector2 toTarget = (target.Center - Projectile.Center).SafeNormalize(Vector2.Zero);
+                if (toTarget != Vector2.Zero)
+                    Projectile.velocity = (Projectile.velocity * 20f + toTarget * homingSpeed) / 21f;
             }
         }
 
@@ -104,8 +94,8 @@ namespace CelestialAerus.Projectiles
             float trailHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
 
             ShaderTrailDraw.Draw(
-                trailPositions,
-                trailPositions.Count,
+                trail.Positions,
+                trail.Count,
                 progress => ShaderTrailDraw.WithAlpha(
                     Color.Lerp(new Color(183, 98, 255), new Color(76, 170, 255), progress),
                     progress * progress * 0.85f),
@@ -154,12 +144,20 @@ namespace CelestialAerus.Projectiles
 
         public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
         {
-            // Full Celestial hit package (debuffs, heal, buffs, biome buffs).
+            // Heal only: the Celestial hit bundle (buffs/debuffs) was
+            // removed temporarily — Peyton has a better idea coming.
+            // The 75 heal stays so the tooltip remains true.
             if (Projectile.owner >= 0 && Projectile.owner < Main.maxPlayers)
             {
                 Player player = Main.player[Projectile.owner];
                 if (player != null && player.active)
-                    CelestialHitEffects.ApplyCelestialHitBundle(player, target);
+                {
+                    int healAmount = 75;
+                    if (player.statLife + healAmount > player.statLifeMax2)
+                        healAmount = player.statLifeMax2 - player.statLife;
+                    player.Heal(healAmount);
+                    player.HealEffect(healAmount);
+                }
             }
 
             SoundEngine.PlaySound(SoundID.Item14, Projectile.Center);

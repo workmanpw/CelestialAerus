@@ -113,5 +113,28 @@ namespace CelestialAerus.Effects
                 return null;
             }
         }
+
+        /// <summary>
+        /// Releases the cached halo texture. Called from ShaderManager.Unload()
+        /// so the GPU texture doesn't leak on every mod reload.
+        /// NOTE: Texture disposal is an FNA3D graphics call and MUST run on the
+        /// main thread. Mod unload runs on a background thread, so disposing here
+        /// directly throws ThreadStateException and fails the whole unload
+        /// (crashed tModLoader on 2026-11-13 when enabling another mod).
+        /// The actual Dispose is queued to the main thread instead.
+        /// </summary>
+        public static void Dispose()
+        {
+            Texture2D halo = _halo;
+            _halo = null;
+            if (halo != null && !halo.IsDisposed)
+            {
+                Main.QueueMainThreadAction(() =>
+                {
+                    if (!halo.IsDisposed)
+                        halo.Dispose();
+                });
+            }
+        }
     }
 }

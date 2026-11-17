@@ -1,3 +1,4 @@
+using System;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
@@ -7,6 +8,9 @@ namespace CelestialAerus.AerusBuffs
     /// <summary>
     /// Shared hit-effect helpers so items and projectiles apply identical
     /// biome-based player buffs and enemy debuffs on hit.
+    /// NOTE (2026-11-14): temporarily unused — ApplyCelestialHitBundle,
+    /// ApplyPlayerBiomeBuffs and ApplyEnemyDebuffs are not called anywhere
+    /// while Peyton designs a better buff system. Kept intact for reuse.
     /// </summary>
     public static class CelestialHitEffects
     {
@@ -91,7 +95,7 @@ namespace CelestialAerus.AerusBuffs
             }
             else if (player.ZoneJungle)
             {
-                player.AddBuff(BuffID.BoneJavelin, 900);
+                player.AddBuff(BuffID.Hunter, 900);
                 player.AddBuff(BuffID.Spelunker, 600);
                 player.AddBuff(BuffID.Regeneration, 600);
             }
@@ -106,12 +110,6 @@ namespace CelestialAerus.AerusBuffs
                 player.AddBuff(BuffID.ManaRegeneration, 900);
                 player.AddBuff(BuffID.MagicPower, 900);
                 player.AddBuff(BuffID.Lucky, 600);
-            }
-            else if (forest)
-            {
-                player.AddBuff(BuffID.WellFed3, 900);
-                player.AddBuff(BuffID.PeaceCandle, 600);
-                player.AddBuff(BuffID.Regeneration, 600);
             }
             else if (pumpkinMoon)
             {
@@ -131,6 +129,12 @@ namespace CelestialAerus.AerusBuffs
                 player.AddBuff(BuffID.Battle, 600);
                 player.AddBuff(BuffID.RapidHealing, 900);
             }
+            else if (forest)
+            {
+                player.AddBuff(BuffID.WellFed3, 900);
+                player.AddBuff(BuffID.PeaceCandle, 600);
+                player.AddBuff(BuffID.Regeneration, 600);
+            }
             else
             {
                 player.AddBuff(BuffID.Swiftness, 300);
@@ -139,16 +143,16 @@ namespace CelestialAerus.AerusBuffs
 
         public static void ApplyEnemyDebuffs(NPC target)
         {
-            target.AddBuff(BuffID.Ichor, 600);
-            target.AddBuff(BuffID.CursedInferno, 600);
-            target.AddBuff(BuffID.Venom, 600);
-            target.AddBuff(BuffID.Weak, 600);
+            // NPCs have only 5 buff slots (NPC.maxBuffs) and AddBuff silently
+            // fails when full. CelestialFlames already takes slot 1 in the
+            // bundle, so only 4 debuffs fit here — CrushedDefense goes first
+            // so the signature defense-shred always lands. The dropped DoTs
+            // (Venom, Weak, OnFire, Poisoned, Frostburn) are redundant given
+            // CelestialFlames already deals 750 DPS.
             target.AddBuff(ModContent.BuffType<CrushedDefense>(), 600);
-            target.AddBuff(BuffID.OnFire, 600);
-            target.AddBuff(BuffID.Poisoned, 600);
-            target.AddBuff(BuffID.Frostburn, 600);
+            target.AddBuff(BuffID.CursedInferno, 600);
             target.AddBuff(BuffID.Daybreak, 600);
-            target.AddBuff(BuffID.StardustMinion, 600);
+            target.AddBuff(BuffID.Ichor, 600);
         }
 
         /// <summary>
@@ -172,8 +176,12 @@ namespace CelestialAerus.AerusBuffs
 
             if (healAmount > 0)
             {
+                // Heal() returns void, so compute the actual amount restored
+                // first — display that instead of the requested amount
+                // (0 at full HP, partial when nearly full).
+                int actualHeal = Math.Min(healAmount, player.statLifeMax2 - player.statLife);
                 player.Heal(healAmount);
-                player.HealEffect(healAmount);
+                player.HealEffect(actualHeal);
             }
 
             // Flat buff bundle shared by all Celestial weapons.

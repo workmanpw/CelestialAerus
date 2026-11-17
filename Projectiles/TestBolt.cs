@@ -6,7 +6,6 @@ using Terraria.GameContent;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
-using Terraria.Localization;
 using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
@@ -16,19 +15,21 @@ namespace CelestialAerus.Projectiles
         // Keep the vanilla Rainbow Rod bolt sprite.
         public override string Texture => "Terraria/Images/Projectile_" + ProjectileID.RainbowRodBullet;
 
-        private readonly List<Vector2> trailPositions = new List<Vector2>();
+        private readonly TrailRecorder trail = new TrailRecorder(MaxTrail);
         private const int MaxTrail = 14;
-
-        public override LocalizedText DisplayName => Language.GetOrRegister("Test Bolt");
 
         public override void SetDefaults()
         {
             // Start from the vanilla Rainbow Rod bolt, then modify it.
+            // Hitbox left as CloneDefaults gives it (vanilla texture).
             Projectile.CloneDefaults(ProjectileID.RainbowRodBullet);
             Projectile.aiStyle = -1; // custom homing AI below
             Projectile.DamageType = DamageClass.Melee;
             Projectile.tileCollide = false; // travel through tiles
             Projectile.timeLeft = 300;
+            // Local immunity like its siblings (was global from CloneDefaults).
+            Projectile.usesLocalNPCImmunity = true;
+            Projectile.localNPCHitCooldown = 12;
         }
 
         public override void AI()
@@ -69,17 +70,15 @@ namespace CelestialAerus.Projectiles
 
             if (target != null)
             {
-                Vector2 toTarget = target.Center - Projectile.Center;
-                toTarget.Normalize();
-                Projectile.velocity = (Projectile.velocity * 20f + toTarget * homingSpeed) / 21f;
+                Vector2 toTarget = (target.Center - Projectile.Center).SafeNormalize(Vector2.Zero);
+                if (toTarget != Vector2.Zero)
+                    Projectile.velocity = (Projectile.velocity * 20f + toTarget * homingSpeed) / 21f;
             }
 
             Projectile.rotation = Projectile.velocity.ToRotation() + MathHelper.PiOver2;
 
             // Track the flight path for the continuous ribbon trail.
-            trailPositions.Add(Projectile.Center);
-            if (trailPositions.Count > MaxTrail)
-                trailPositions.RemoveAt(0);
+            trail.Record(Projectile.Center);
         }
 
         public override bool PreDraw(ref Color lightColor)
@@ -93,8 +92,8 @@ namespace CelestialAerus.Projectiles
             float trailHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
 
             ShaderTrailDraw.Draw(
-                trailPositions,
-                trailPositions.Count,
+                trail.Positions,
+                trail.Count,
                 progress =>
                 {
                     float hue = (Main.GlobalTimeWrappedHourly * 0.6f + progress * 0.25f) % 1f;

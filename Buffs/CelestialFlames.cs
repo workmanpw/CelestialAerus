@@ -17,22 +17,18 @@ namespace CelestialAerus.AerusBuffs
             Main.buffNoTimeDisplay[Type] = false;
         }
 
-        public override LocalizedText DisplayName => Language.GetOrRegister("Celestial Flames");
-        public override LocalizedText Description => Language.GetOrRegister("Burning with cosmic fire");
-
         public override void Update(NPC npc, ref int buffIndex)
         {
-            // Nerfed timer system - deal damage every 1 second (60 ticks at 60 FPS) instead of every 0.25 seconds
-            if (npc.buffTime[buffIndex] % 60 == 0)
-            {
-                // Significantly reduced damage: 750 damage every 1 second instead of 5000 every 0.25 seconds
-                npc.life -= 750;
-            }
+            // Apply the intended 750 damage per second through vanilla's
+            // regeneration pipeline, independent of the refreshable timer.
+            if (npc.lifeRegen > 0)
+                npc.lifeRegen = 0;
+            npc.lifeRegen -= 1500;
 
             // Reduced dust particles for better performance
-            if (Main.rand.NextBool(12)) // Reduced from 8 to 12 for less frequent particles
+            if (Main.netMode != NetmodeID.Server && Main.rand.NextBool(12))
             {
-                int dustIndex = Dust.NewDust(
+                Dust dust = Dust.NewDustDirect(
                     npc.position,
                     npc.width,
                     npc.height,
@@ -43,14 +39,8 @@ namespace CelestialAerus.AerusBuffs
                     new Color(Main.DiscoR, Main.DiscoG, Main.DiscoB), // Rainbow color
                     1.2f // Reduced scale
                 );
-                Main.dust[dustIndex].noGravity = true;
-            }
-
-            // Kill NPC if life drops to 0 or below
-            if (npc.life <= 0)
-            {
-                npc.life = 0;
-                npc.checkDead();
+                if (dust != null)
+                    dust.noGravity = true;
             }
         }
     }

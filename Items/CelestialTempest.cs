@@ -4,9 +4,8 @@ using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
 using Terraria.ModLoader;
-using Terraria.Localization;
-using CelestialAerus.AerusBuffs;
-using CelestialAerus.AerusProjectiles;
+using CelestialAerus.Config;
+using CelestialAerus.Players;
 using CelestialAerus.Projectiles;
 
 namespace CelestialAerus.Items
@@ -16,14 +15,6 @@ namespace CelestialAerus.Items
         public override string Texture => "CelestialAerus/Textures/CelestialTempest";
 
         public override void SetStaticDefaults() { }
-
-        public override LocalizedText DisplayName => Language.GetOrRegister("Celestial Tempest");
-        public override LocalizedText Tooltip => Language.GetOrRegister(
-            "The storm that rages between dimensions\n" +
-            "You will know Judgement\n" +
-            "Fires different projectiles and grants powerful buffs based on what biome you are standing in, and heals a large amount of life on hit\n" +
-            "Inflicts debilitating debuffs on enemies\n" +
-            "The ultimate fusion of all cosmic forces");
 
         public override void SetDefaults()
         {
@@ -50,16 +41,48 @@ namespace CelestialAerus.Items
 
         public override bool CanReforge() => true;
 
-        public override bool AltFunctionUse(Player player) => true;
+        public override bool AltFunctionUse(Player player)
+        {
+            return ModContent.GetInstance<CelestialAerusConfig>().EnableCelestialTempestRightClickModeToggle;
+        }
+
+        public override bool CanUseItem(Player player)
+        {
+            // Right-click only toggles Tempest Star mode; suppress the
+            // melee swing while toggling so it doesn't also deal a hit.
+            bool toggling = player.altFunctionUse == 2
+                && ModContent.GetInstance<CelestialAerusConfig>().EnableCelestialTempestRightClickModeToggle;
+            Item.noMelee = toggling;
+            return true;
+        }
+
+        public override bool? UseItem(Player player)
+        {
+            if (player.altFunctionUse == 2 && ModContent.GetInstance<CelestialAerusConfig>().EnableCelestialTempestRightClickModeToggle)
+            {
+                var modPlayer = player.GetModPlayer<AerusPlayer>();
+                modPlayer.tempestMode = !modPlayer.tempestMode;
+
+                string modeText = modPlayer.tempestMode ? "Tempest Star mode" : "Normal Tempest mode";
+                Main.NewText($"Celestial Tempest: {modeText}", Color.Cyan);
+                return true;
+            }
+
+            return null;
+        }
 
         public override void ModifyTooltips(List<TooltipLine> list)
         {
-            list.Add(new TooltipLine(Mod, "Tooltip0", "Right click to summon TempestStar from screen edges\nHeals 75 life on hit"));
+            list.Add(new TooltipLine(Mod, "Tooltip0", $"Right click toggles Tempest Star mode ({(ModContent.GetInstance<CelestialAerusConfig>().EnableCelestialTempestRightClickModeToggle ? "enabled" : "disabled")})\nHeals 75 life on hit"));
         }
 
         public override bool Shoot(Player player, EntitySource_ItemUse_WithAmmo source, Vector2 position, Vector2 velocity, int type, int damage, float knockback)
         {
-            if (player.altFunctionUse == 2)
+            var modPlayer = player.GetModPlayer<AerusPlayer>();
+            if (player.altFunctionUse == 2 && ModContent.GetInstance<CelestialAerusConfig>().EnableCelestialTempestRightClickModeToggle)
+                return false;
+
+            if (modPlayer.tempestMode)
             {
                 SpawnTempestStarFromScreenEdges(player, source, damage, knockback);
                 return false;
@@ -67,33 +90,21 @@ namespace CelestialAerus.Items
 
             // Main shot: TempestBeam
             type = ModContent.ProjectileType<TempestBeam>();
-            int projectile = Projectile.NewProjectile(source, position.X, position.Y, velocity.X, velocity.Y, type, damage, knockback, Main.myPlayer);
-            Main.projectile[projectile].timeLeft = 160;
-            Main.projectile[projectile].tileCollide = false;
+            int projectile = Projectile.NewProjectile(source, position.X, position.Y, velocity.X, velocity.Y, type, damage, knockback, player.whoAmI);
+            if (projectile >= 0 && projectile < Main.maxProjectiles)
+            {
+                Main.projectile[projectile].timeLeft = 160;
+                Main.projectile[projectile].tileCollide = false;
+            }
 
             // Spread shots: TempestStar
             float num72 = Main.rand.Next(22, 30);
-            damage = Main.rand.Next(500, 621);
-            Vector2 vector2 = player.RotatedRelativePoint(player.MountedCenter, true);
-            float num78 = (float)Main.mouseX + Main.screenPosition.X + vector2.X;
-            float num79 = (float)Main.mouseY + Main.screenPosition.Y + vector2.Y;
-            if (player.gravDir == -1f)
-            {
-                num79 = Main.screenPosition.Y + (float)Main.screenHeight + (float)Main.mouseY + vector2.Y;
-            }
-            float num80 = (float)System.Math.Sqrt((double)(num78 * num78 + num79 * num79));
-            if ((float.IsNaN(num78) && float.IsNaN(num79)) || (num78 == 0f && num79 == 0f))
-            {
-                num78 = (float)player.direction;
-                num79 = 0f;
-                num80 = num72;
-            }
-            else
-            {
-                num80 = num72 / num80;
-            }
-            num78 *= num80;
-            num79 *= num80;
+            int seekerDamage = (int)(damage * 0.25f);
+            // vector2 / num78 / num79 / num80 are assigned fresh inside
+            // the loop before any use; the old pre-loop computation of
+            // them was dead and was removed 2026-11-14.
+            Vector2 vector2;
+            float num78, num79, num80;
             int num107 = 4;
             for (int num108 = 0; num108 < num107; num108++)
             {
@@ -106,6 +117,7 @@ namespace CelestialAerus.Items
                 num78 = (float)Main.mouseX + Main.screenPosition.X - vector2.X;
                 num79 = (float)Main.mouseY + Main.screenPosition.Y - vector2.Y;
                 num80 = (float)System.Math.Sqrt((double)(num78 * num78 + num79 * num79));
+                if (num80 == 0f) num80 = num72; // Cursor exactly on the spawn point: avoid dividing by zero.
                 num80 = num72 / num80;
                 num78 *= num80;
                 num79 *= num80;
@@ -115,9 +127,12 @@ namespace CelestialAerus.Items
                 int projectileFire = Projectile.NewProjectile(
                     source, vector2.X, vector2.Y, speedX4, speedY5,
                     ModContent.ProjectileType<TempestStar>(),
-                    damage, knockback, player.whoAmI,
+                    seekerDamage, knockback, player.whoAmI,
                     0f, (float)Main.rand.Next(3));
-                Main.projectile[projectileFire].timeLeft = 80;
+                if (projectileFire >= 0 && projectileFire < Main.maxProjectiles)
+                {
+                    Main.projectile[projectileFire].timeLeft = 80;
+                }
             }
             return false;
         }
@@ -172,9 +187,12 @@ namespace CelestialAerus.Items
                     0f,
                     0f
                 );
-                Main.projectile[projectile].timeLeft = 300;
-                Main.projectile[projectile].tileCollide = false;
-                Main.projectile[projectile].alpha = 255;
+                if (projectile >= 0 && projectile < Main.maxProjectiles)
+                {
+                    Main.projectile[projectile].timeLeft = 300;
+                    Main.projectile[projectile].tileCollide = false;
+                    Main.projectile[projectile].alpha = 255;
+                }
             }
         }
 
@@ -184,7 +202,7 @@ namespace CelestialAerus.Items
             recipe.AddIngredient(ModContent.ItemType<Cosmosis>());
             recipe.AddIngredient(ModContent.ItemType<ArkOfTheCelestials>());
             recipe.AddIngredient(ModContent.ItemType<AndromedasWrath>());
-            recipe.AddTile(TileID.WorkBenches);
+            recipe.AddTile(TileID.LunarCraftingStation);
             recipe.Register();
         }
 
@@ -205,8 +223,10 @@ namespace CelestialAerus.Items
 
         public override void OnHitNPC(Player player, NPC target, NPC.HitInfo hit, int damageDone)
         {
-            // Full Celestial hit package; Celestial Tempest also grants its rage buff.
-            CelestialHitEffects.ApplyCelestialHitBundle(player, target, grantAndromedasRage: true);
+            // Heal only — the mod-buff group (CelestialFlames /
+            // CrushedDefense / Andromeda's Rage / biome buffs) was
+            // removed 2026-11-14, temporarily.
+            player.Heal(75);
         }
     }
 }

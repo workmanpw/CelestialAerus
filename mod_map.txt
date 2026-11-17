@@ -1,0 +1,907 @@
+Folder PATH listing for volume Peyton
+Volume serial number is 0CE4-8234
+C:.
+|   .gitignore
+|   BrigittesCharmStatus.txt
+|   build.txt
+|   CelestialAerus.cs
+|   CelestialAerus.csproj
+|   description.txt
+|   description_workshop.txt
+|   icon.png
+|   mod_map.txt
+|   
++---.git
+|   |   COMMIT_EDITMSG
+|   |   config
+|   |   description
+|   |   FETCH_HEAD
+|   |   HEAD
+|   |   index
+|   |   ORIG_HEAD
+|   |   REBASE_HEAD
+|   |   
+|   +---hooks
+|   |       applypatch-msg.sample
+|   |       commit-msg.sample
+|   |       fsmonitor-watchman.sample
+|   |       post-update.sample
+|   |       pre-applypatch.sample
+|   |       pre-commit.sample
+|   |       pre-merge-commit.sample
+|   |       pre-push.sample
+|   |       pre-rebase.sample
+|   |       pre-receive.sample
+|   |       prepare-commit-msg.sample
+|   |       push-to-checkout.sample
+|   |       sendemail-validate.sample
+|   |       update.sample
+|   |       
+|   +---info
+|   |       exclude
+|   |       
+|   +---logs
+|   |   |   HEAD
+|   |   |   
+|   |   \---refs
+|   |       +---heads
+|   |       |       main
+|   |       |       
+|   |       \---remotes
+|   |           \---origin
+|   |                   HEAD
+|   |                   main
+|   |                   
+|   +---objects
+|   |   +---00
+|   |   |       63957fa6a9b0b08d7ac02b5848edd1eeb7e083
+|   |   |       984355ab18fbd42f91863c3ffab1613275dc74
+|   |   |       
+|   |   +---01
+|   |   |       14f6d741ba8b6affbf07f46e897bfe88338f2c
+|   |   |       ecf7595dd1ee8d4897971bbd8d6ec2b6080910
+|   |   |       
+|   |   +---02
+|   |   |       9c3c1c9093310dfa83ce67c1c8e6a90c912957
+|   |   |       a64c7192b3f3fa83c3d027af7eb2ac3747e59b
+|   |   |       d6aa823f4fced293af594a636a40c620c2fdd3
+|   |   |       
+|   |   +---03
+|   |   |       1f5bea345028c3ec577885cf4ed4dff37ca2ec
+|   |   |       21c9e8b2c3945443244c9cd6e38da7ba07d685
+|   |   |       
+|   |   +---04
+|   |   |       c5646fded8c39b9fa4fb2cb4826b55a2aacdbb
+|   |   |       
+|   |   +---05
+|   |   |       4a6576a2d5687efb04aba1a1eff3d383f8b1a2
+|   |   |       b9fc5029352f8b34513d22205b594d85ea6a3d
+|   |   |       e3017fc34e8fa4ae559caa8be62b64e4f986e9
+|   |   |       
+|   |   +---06
+|   |   |       2ead8828c1ce1e17f3e842cb893c5b30db0981
+|   |   |       bc8abf04e842663872fd8fd6d150508f02f1f5
+|   |   |       
+|   |   +---07
+|   |   |       4aa7b4d3e8f99a7b9c2d4480e6bf3a71168ec8
+|   |   |       c4257eb569d64244f5abdafb28e3879433690e
+|   |   |       
+|   |   +---08
+|   |   |       179c03c1b47d854d2ad7b4ff5a48d356693370
+|   |   |       
+|   |   +---09
+|   |   |       3ce3eb847cb7e70252d493d6677c8041fcbaea
+|   |   |       
+|   |   +---0a
+|   |   |       f6c99e83191c3d6a1cee3921183f4a834dd74b
+|   |   |       
+|   |   +---0b
+|   |   |       14731e76116f1a7c68f94c94a9d06a0b1728a5
+|   |   |       47a0f5d7606625afa048121263feaf804d772f
+|   |   |       
+|   |   +---0c
+|   |   |       138aedf7793e99edf9f2f2831edd2fdb21255b
+|   |   |       
+|   |   +---0d
+|   |   |       b64969ee773f0f2a53cc5bc58278bdedbfe94a
+|   |   |       
+|   |   +---0e
+|   |   |       24fbc15ac414314e65e1497591d258c261b16d
+|   |   |       91e2eb79a08dd1ecdfad4cfd1f495cb0f2e254
+|   |   |       95bc7b9403528f7a1dd07994ad91b2a94eaaaf
+|   |   |       
+|   |   +---10
+|   |   |       d46954e86f02319a6b71afb2cbbed6afc83592
+|   |   |       
+|   |   +---13
+|   |   |       983f042b9ad94b255eb3454d0d7ed99a438a12
+|   |   |       e94a5ffbd1f6a63e3e7653632cd6dcd8584622
+|   |   |       
+|   |   +---17
+|   |   |       a0a9400f15b1b2c0a313f44bce538eab2c4c9e
+|   |   |       
+|   |   +---18
+|   |   |       a99cef8a14e0cb64fddb5364381cb7d7fc404a
+|   |   |       
+|   |   +---19
+|   |   |       d2eae2e4007498d799e77bac778c0c849b424e
+|   |   |       
+|   |   +---1a
+|   |   |       0683c252b91498cab0feec6bbf089725c196c3
+|   |   |       
+|   |   +---1c
+|   |   |       3769a5278cc337b8083cd0b543935282438c57
+|   |   |       9b8ea070321385685b071f62f9aee6be5eb8e3
+|   |   |       b045b6e6513f8ef1c4f1cf5a92fa069c11b9db
+|   |   |       
+|   |   +---1e
+|   |   |       90256b4603f9cde73063ab79d0434d8ee55ded
+|   |   |       cbe630d2d1d05e319476f32bc9a6208b0ed33f
+|   |   |       fdae2bf4d2fa492fbb101a9f68522f31d1eefb
+|   |   |       
+|   |   +---1f
+|   |   |       c88ae4dd3e02734245e7248192622df8515c97
+|   |   |       
+|   |   +---20
+|   |   |       c5b3afaaba88a70ce3792bb6ca38145698304a
+|   |   |       
+|   |   +---22
+|   |   |       24a14d27862eb20f902ec3cb180e82d38258b5
+|   |   |       8fa9847533de945b7e4acbf132d42bca871683
+|   |   |       
+|   |   +---24
+|   |   |       e0fae4adcfe77d574904e80fc63f762580a064
+|   |   |       
+|   |   +---25
+|   |   |       410acca3cb44f1ee553556c5fdb25bccae3886
+|   |   |       
+|   |   +---26
+|   |   |       1eeb9e9f8b2b4b0d119366dda99c6fd7d35c64
+|   |   |       b5f124566931808036164a8efc531615bbf65a
+|   |   |       
+|   |   +---27
+|   |   |       5e953f609bfaed7ecf6895ead8067e67c6010c
+|   |   |       abf4196c529fbde0a78f69a6fa111036ad2c91
+|   |   |       
+|   |   +---28
+|   |   |       2cbb80aa4ea6ca0097ef32acab604262f5e0a8
+|   |   |       
+|   |   +---2a
+|   |   |       88b2b704bef63efd529de1f3d21d52ec0c329a
+|   |   |       
+|   |   +---2d
+|   |   |       fb489abd9cdec8e56b79e6628ee53783af7725
+|   |   |       
+|   |   +---2e
+|   |   |       accdd81fc0692315cf8e579e9677e0a38dfd35
+|   |   |       eba6fb0e9daf594636cc22cb0ef0bc55d906de
+|   |   |       
+|   |   +---2f
+|   |   |       e3e3fa8d2043ed8141429fab4c7f1abb489804
+|   |   |       
+|   |   +---32
+|   |   |       e95c5ae01f0af6f9f4bb7dab2ece29a10036c4
+|   |   |       f08ad48755f487fc1d15dac7a7b265d0a3c96d
+|   |   |       
+|   |   +---33
+|   |   |       01f35a5562abc532661b1100fdfc4953408d0c
+|   |   |       
+|   |   +---34
+|   |   |       782eb551e86e580dc45306c4acb340ccf67626
+|   |   |       e2dd35fa6941594bf02250d0d577c07e5ece0d
+|   |   |       ff82e05cbb416f41f1be6d1cfe06c7c07e7d69
+|   |   |       
+|   |   +---35
+|   |   |       aa15bb4bd3d1fad4fa8d1e29157ef9bb12e225
+|   |   |       
+|   |   +---36
+|   |   |       24236b6642c4b2cd2c9750f1ea6ae9679c2714
+|   |   |       
+|   |   +---38
+|   |   |       d70374d8c788df24da32a3906ea3f5dae59e7c
+|   |   |       e0dea1db0efd0660fce0d57f529213479b7c9a
+|   |   |       
+|   |   +---39
+|   |   |       95bb8662b673c24cc765d43847e3c4c95d38d6
+|   |   |       cc8e3e3fe8b2298e576a26e63c645d03d5df1e
+|   |   |       e4692575209266d0993c570fc60eab6adb035c
+|   |   |       
+|   |   +---3c
+|   |   |       409be8a10c7e0f458c2b316719820621235694
+|   |   |       
+|   |   +---3d
+|   |   |       6151bc9d058313836393261a515609d7400898
+|   |   |       c06ef3cc4057524bf5d2cd49936dff789cebe8
+|   |   |       da3e66b14a7aaabb24524267460b42d538ca4b
+|   |   |       
+|   |   +---3e
+|   |   |       3280d29d5b58c296fb8c1f24f658cb39880e9b
+|   |   |       36839073bf3e8ca97e594a21c404b89c535a4a
+|   |   |       
+|   |   +---3f
+|   |   |       2ed8df7e9fdbf61e1382989f05bfc1b96b9714
+|   |   |       9da50676c7dfe1d34cfdc321b755f6f2c9751d
+|   |   |       
+|   |   +---40
+|   |   |       663f0967d703b88d915eabbd3e426255512c2c
+|   |   |       ab75919c50e19612609d3854fee18c9b7098b2
+|   |   |       
+|   |   +---41
+|   |   |       73ab8f265dfa9fa908da8bf8edc2a861038fec
+|   |   |       81df8f0a3d938a4863935b19d788b98109fb98
+|   |   |       
+|   |   +---43
+|   |   |       048aef4e2060e9b3734a41e96b7c69e75ceace
+|   |   |       283f6a9f0774fbf42509b3eff01e5142d47c9e
+|   |   |       cb0dada3b8eca7a3f8526a702c1bbd6edc128a
+|   |   |       
+|   |   +---44
+|   |   |       9b78f489a3f687c9cec9a2192502f21c9fa73d
+|   |   |       bbaca48d4dcaecead3820763c68bccb4e0482d
+|   |   |       cd2a0aa1d9a54a899d6e8a724d80df20e80000
+|   |   |       cdb2a2ef265f6c3113bb4589c251cf11ae033b
+|   |   |       
+|   |   +---45
+|   |   |       c6fcf6a5f8a9358825cf3d442fa7378e2d5f70
+|   |   |       
+|   |   +---46
+|   |   |       a0697016b58c8980cdb32b11c763bcfe9f1965
+|   |   |       
+|   |   +---47
+|   |   |       bf51b636d10c9bf9d92e0d0388a1e443e7bfbc
+|   |   |       
+|   |   +---48
+|   |   |       548288e5102c25099abb8946ab6c0ed557d3bc
+|   |   |       
+|   |   +---49
+|   |   |       4048a1bea3b280a5c21a79bd7cfdbb8912e8b6
+|   |   |       
+|   |   +---4a
+|   |   |       93444a2a1d42f51ad4443b0e0bb6d07f197b7c
+|   |   |       
+|   |   +---4e
+|   |   |       4ff4fb5bcd89b9129862c7c96b754727400517
+|   |   |       
+|   |   +---4f
+|   |   |       3e09aa3e8d4058f2bd933a2c9842a92393970a
+|   |   |       
+|   |   +---51
+|   |   |       eef3d65621aa05f0ed016a3d4b5d06a11f0ae2
+|   |   |       
+|   |   +---53
+|   |   |       75244c684df0d676ee8ca46646fbffb2a70c3c
+|   |   |       
+|   |   +---55
+|   |   |       c7dd62a9bca77dc38d3b1c9c6ef336054b28fc
+|   |   |       
+|   |   +---56
+|   |   |       2de955b13721bcdfa3db6978aa46e7f9fee1b8
+|   |   |       4e908cec2e15f28ad9547a6a616c0ddf7bb272
+|   |   |       7b902a4889790808b991b76d16ec6a4dbda3a1
+|   |   |       b106b27d90d5ee7ebe17403a64a0556d67cdff
+|   |   |       d1e61a409383555892d019715c8939f9dbbaff
+|   |   |       fefa0f83567ee9eec1856ba3f202f51bb92911
+|   |   |       
+|   |   +---57
+|   |   |       5fcfbf9cb8957402e50a1665ded02566cec78b
+|   |   |       
+|   |   +---58
+|   |   |       38d0f1fcacb272c803d2cc05fdd556a6364fe1
+|   |   |       
+|   |   +---59
+|   |   |       2d9b49d47a4ef2e843fd2e2e55222f0fd7f3f8
+|   |   |       5b1669133ef080431a07f1f852c15f08bbdf3f
+|   |   |       83b3dbd48d9f4c8a90cc154122eef73fd19674
+|   |   |       
+|   |   +---5a
+|   |   |       1823458ab3c82a3f29f3c91f507f1e72857d43
+|   |   |       
+|   |   +---5b
+|   |   |       475749a1f828e9fd5a4a8d8ce912c976c6f1e3
+|   |   |       
+|   |   +---5c
+|   |   |       29b814ebad113ddb4e0194c49b4321d9425eeb
+|   |   |       
+|   |   +---5d
+|   |   |       0860b54b29811f4e90cb6e7bf1209fd1e7031e
+|   |   |       
+|   |   +---5f
+|   |   |       3bf87877235823abeba002d59a2445839572e2
+|   |   |       
+|   |   +---61
+|   |   |       6b74b7d527af883a946971b8780cbc6944f560
+|   |   |       6c9875a4700676c0bf6d044b755cb9d534386d
+|   |   |       8501b7120e6cfbfe0bda88b2d37583f5a29ce0
+|   |   |       dc5cc708a3ea25c53b6013e413e53c673949ca
+|   |   |       
+|   |   +---62
+|   |   |       b832d92c223d568790fe5b89aa38a901fb6a7f
+|   |   |       
+|   |   +---63
+|   |   |       0b33f7322b300935c3a69c879cd7ec09c3fb42
+|   |   |       708e8f636708cc125fc51796f1c7847c0522ce
+|   |   |       
+|   |   +---64
+|   |   |       7f0371a7fbf0d03e6c150dc59ea541a2cbdfd8
+|   |   |       92c644b78ca5d4398b8b5465b987439a87e5aa
+|   |   |       97076b9cbbad21d7977c0f03805b69a3dc93d5
+|   |   |       
+|   |   +---65
+|   |   |       92bce880186dbb12da6721db0a896af31e76ff
+|   |   |       
+|   |   +---66
+|   |   |       037bc78f206e9febac11b6a59238757f080ccb
+|   |   |       3ce55e972b8f5df2eee308fe9adfa4399ba542
+|   |   |       
+|   |   +---68
+|   |   |       fa228adfb00969c47d9471c4c0e68d1dee7704
+|   |   |       
+|   |   +---6b
+|   |   |       0cc2ab9382e256ef94cdcd2291c4747c9e88e9
+|   |   |       
+|   |   +---6c
+|   |   |       2a05394ea65cb290ec45d26824a7905662999f
+|   |   |       
+|   |   +---6d
+|   |   |       0d3b8baad34c206ea29f7bba2a9f7ed9534d80
+|   |   |       63383f170349e675c7233119c801715afc4d7d
+|   |   |       
+|   |   +---70
+|   |   |       0535fcf7829711aadbd7bc6918d772c6ba53a3
+|   |   |       25a4e46eaa56f63efc47c7565abe3c4a7f2a9f
+|   |   |       6ddb740f9177dc1952e4cc40a487d5f83f3689
+|   |   |       f405084b4651dd40638864bb952aeb72c7f47d
+|   |   |       
+|   |   +---72
+|   |   |       15873feb485da804d1867a12c01e6388bcbc46
+|   |   |       61beb40b4ec25de911cd09be4d88c8937b878d
+|   |   |       
+|   |   +---74
+|   |   |       6db1d81c68191aa10973beef0c98d8fb1e8adb
+|   |   |       c6a51767b8d3b45d76d434bbb62f7d5faf053f
+|   |   |       
+|   |   +---75
+|   |   |       77f07740dc91a57bdcd11ac0c0187a6a9f8491
+|   |   |       a72f77465bafc1fbebd5e7d8f6988aa98035df
+|   |   |       
+|   |   +---76
+|   |   |       1eb81dc72796560d63efd78e365f13d85ed0e8
+|   |   |       4d044e71d21578531df3f1e3cbee9ae3c0a96c
+|   |   |       
+|   |   +---78
+|   |   |       85702236d6f98479c13d12f519a0d85b0109e6
+|   |   |       fc36c9a6f382388925b36140195417a5ffe2d4
+|   |   |       
+|   |   +---79
+|   |   |       3cd1e808504eac2bc81d465c25adf685051f61
+|   |   |       
+|   |   +---7c
+|   |   |       6ab53d2cc6751697c98f22b611fd436f7f80ee
+|   |   |       976ca2d6dee94bc3bd789a42a7e2e480afe457
+|   |   |       d63829a3e05dbfe38dfbb2f843c3a9fcd19cb4
+|   |   |       
+|   |   +---7e
+|   |   |       adfedd5db10ea2c05bc4e278258400f1dd9010
+|   |   |       
+|   |   +---80
+|   |   |       cbe7a8db342c05df9c9f93c9360ee2742c39f5
+|   |   |       
+|   |   +---81
+|   |   |       366e7fb16eccf764ef86a60d0b233db16d85fb
+|   |   |       
+|   |   +---83
+|   |   |       5440bb7d0e37803bd82962cbd74a01c298e6de
+|   |   |       
+|   |   +---84
+|   |   |       7c03238461875319cbc052ef1305cda888a92a
+|   |   |       92fc83f92a1c993784f23b4efb52641e32f510
+|   |   |       
+|   |   +---85
+|   |   |       772b842e01e18da66db141d14f7545163ab2c7
+|   |   |       7ae797193d0f93f9e21709d158f8f91d456a55
+|   |   |       
+|   |   +---88
+|   |   |       c23660e461ccf252754940a86d39fd14aceeb9
+|   |   |       
+|   |   +---89
+|   |   |       0e208460289947577dc054140c81c8c04c5063
+|   |   |       acee599b4d563bccb07ace967b750e72e756b5
+|   |   |       
+|   |   +---8b
+|   |   |       311820949b324fd44d8bf205ea22941742e611
+|   |   |       681ae8f8c30e5fdbb5576bcdeecae88d99dd2e
+|   |   |       
+|   |   +---8d
+|   |   |       0b1946146f9dac3ead4ae40a74a4982f03de5f
+|   |   |       7c0f9d5c87e827f0a5692a6a448c51cd2c2a78
+|   |   |       
+|   |   +---8e
+|   |   |       397059da1232557201c2f76ab90a290444533f
+|   |   |       
+|   |   +---8f
+|   |   |       57a99980891ccc68701b94b94342f7ae0e02d6
+|   |   |       97a3ffd909866846887d97508aa36d91583ff2
+|   |   |       9ea4299bdbd561f0d4e5f6f7230da8d9a3fd13
+|   |   |       
+|   |   +---90
+|   |   |       6e15c6dce576e5d27b9696f17f1f15cf94ce83
+|   |   |       8de50d0eaa0fbdab2cedca5bdaeef4eced67bb
+|   |   |       a8b7d6ed984129ff263e998a51b9bd8a1538e3
+|   |   |       
+|   |   +---91
+|   |   |       b53442415953c49edd50d538e2808a8b8752ed
+|   |   |       f0d80ab2037850444a3931733836b3d2dfe3d3
+|   |   |       
+|   |   +---92
+|   |   |       befb832e2de6a0fadd066e605069725693f96a
+|   |   |       
+|   |   +---93
+|   |   |       735ecbeb9ee4106cc08009ec9d546e77915689
+|   |   |       
+|   |   +---94
+|   |   |       273740a5db5f87857f20964df3a46276e1d872
+|   |   |       
+|   |   +---95
+|   |   |       4f028d720fe7f6f01d3c518eecf8a9f54ad2d3
+|   |   |       
+|   |   +---97
+|   |   |       583adbadc19eb6d4f414ec403ac26d15645969
+|   |   |       
+|   |   +---98
+|   |   |       417294e50195cb1628d441282b2d373009dd76
+|   |   |       
+|   |   +---99
+|   |   |       99d65fa2a8627e273f8353850e94b68acf4803
+|   |   |       
+|   |   +---9a
+|   |   |       975cd28c583b56d823119838f6c22d0152a6ea
+|   |   |       
+|   |   +---9b
+|   |   |       0c04fbf7f68baedf4fe9f5a90435722fe727fa
+|   |   |       29fc691ff96d25e9d99c21ef6d0c83d6690d14
+|   |   |       d787881655ecd737bd1b6205d0b2d789989bd8
+|   |   |       
+|   |   +---9c
+|   |   |       3c072d37d1dd0f776c6b4dd29a47bf977fc07b
+|   |   |       a7d214fe9924a44c206d1992665e1dd827ae9d
+|   |   |       b18ad03a1330f0f747afcfb3e42cc6ac3a995d
+|   |   |       
+|   |   +---9d
+|   |   |       0b42c38399198cf137c16f135ad426c698be9c
+|   |   |       
+|   |   +---9e
+|   |   |       3fe8008f12c6782709b5bdf9cc80fc78239bc4
+|   |   |       aea8de8f5b82314d212c5ed1052c1ca1a546b1
+|   |   |       
+|   |   +---9f
+|   |   |       78447426ab26b590e3c1e503ae93728fdefd91
+|   |   |       
+|   |   +---a0
+|   |   |       89426b6d15de0b790f165b92025e4e8967f754
+|   |   |       
+|   |   +---a1
+|   |   |       1f92cff5c1ab88e22b444cd3f1106ddbf8f521
+|   |   |       
+|   |   +---a2
+|   |   |       30e4aecf1a8ac14989a4ca95dd651fc9fd4d4d
+|   |   |       3a86257b98fe7e8df1c09533454ae36d388961
+|   |   |       9a8a7cfc75af14a682dfb96caf569db2490720
+|   |   |       
+|   |   +---a3
+|   |   |       3f1ff8670a0c01144ce576e8838ed0822d585f
+|   |   |       
+|   |   +---a4
+|   |   |       5b6def0310f2500a6b2e899049b04fea7bbcc3
+|   |   |       981fbd74d36771333b1d52c5499989262a2d7a
+|   |   |       bab3e2c09a4ca89412a14245ecc8670e217d92
+|   |   |       
+|   |   +---a6
+|   |   |       8b4adb38fa4e533a993a85636a31ba6525a03a
+|   |   |       
+|   |   +---a8
+|   |   |       f4005a9ded3de1b8a1983c0fd6789b7db93fc1
+|   |   |       
+|   |   +---a9
+|   |   |       7c54ec58f4b3f5b4196eebe80b69d54a922516
+|   |   |       
+|   |   +---ab
+|   |   |       8021def09c5423a048f6c2e074112ccad34a09
+|   |   |       
+|   |   +---ac
+|   |   |       62fc3d1ed1d163c3f2edd42f84115a00f1c98b
+|   |   |       b8c826d5c26020828cf5b467d5507852eac7ad
+|   |   |       e7dd90a1e527357f1010520fb678008f52b94b
+|   |   |       f1e9a6799f7fba92839a35aa1bd51732a88d1b
+|   |   |       
+|   |   +---ad
+|   |   |       a1f5d8b09adccb0433f64ae8eeb599af8e092b
+|   |   |       a3e7d511581e7f68c7d1055f8a34bd9838fc35
+|   |   |       
+|   |   +---ae
+|   |   |       e0e25880445b5e733373cf652092d4c8f6f4a3
+|   |   |       
+|   |   +---af
+|   |   |       68e717e4bef9693572d98a3b883d077cd9b15b
+|   |   |       
+|   |   +---b2
+|   |   |       37440edd78fab967438101f48e088f9e661a31
+|   |   |       4c566ac9c00c63c1f5577afba182ffe9f25616
+|   |   |       
+|   |   +---b3
+|   |   |       0cf432ab85e214b3d79511a90b1bff82be8114
+|   |   |       
+|   |   +---b5
+|   |   |       7c8d4fb919d49f916162d9dce4b9ce667e4a24
+|   |   |       
+|   |   +---b6
+|   |   |       784d9f70cfdff34f9ec8f700c7c237f6de8959
+|   |   |       
+|   |   +---b7
+|   |   |       eb92d93586b2395ea21ffc3a32d5cbeac71cf2
+|   |   |       
+|   |   +---b8
+|   |   |       642619d6b65cb7a93c15db3a5b6879c486c8e0
+|   |   |       
+|   |   +---b9
+|   |   |       c66012c139c0d4f4ca85d4e2a380a7dc1e5e91
+|   |   |       
+|   |   +---ba
+|   |   |       def26ae5b30e74616a773dc75d94e066903e29
+|   |   |       
+|   |   +---bb
+|   |   |       0e2b7e20506d2e424fc5438e1bf77063ff5942
+|   |   |       
+|   |   +---bc
+|   |   |       a9eff2089057e06689c724d8fdec7487c2c311
+|   |   |       
+|   |   +---be
+|   |   |       4cebc31a366f3b5d209b34f0665a3a007eb904
+|   |   |       5080371c70176b33afc0deacd0dd3a13edd05a
+|   |   |       f798411f489c2e0d05370df322af5f16718213
+|   |   |       
+|   |   +---bf
+|   |   |       0d161cf827028277b1a2ba53dee3b05c760203
+|   |   |       c22769087e74356c48b3e9c6bc64b1b9617abd
+|   |   |       
+|   |   +---c0
+|   |   |       4dd7b44d31c34d52200e5034db392549a23341
+|   |   |       
+|   |   +---c1
+|   |   |       69ca6ff3278e8fef386721511a55787357f5f1
+|   |   |       ed5fd627637a5f1d7f3b731d85227427d148f4
+|   |   |       
+|   |   +---c3
+|   |   |       85c90a0cb899d35aa62f5348166be38fc7bf0f
+|   |   |       f00ee8420ef06812381ab42c31e38627008d7b
+|   |   |       
+|   |   +---c4
+|   |   |       005bef336c03c25d8deacce70b0f058f959480
+|   |   |       
+|   |   +---c6
+|   |   |       c8093f91a44de42086f8b7d69c01777a2db4c2
+|   |   |       
+|   |   +---c7
+|   |   |       302056f301e1590af68fc08efaa955c193280f
+|   |   |       
+|   |   +---ca
+|   |   |       d6fe9aac6e67e707d90602bbfbd645f3dcd077
+|   |   |       
+|   |   +---cb
+|   |   |       f6ddcbfb774db9b1fdc3a7dae6d316658b5cd9
+|   |   |       
+|   |   +---cd
+|   |   |       d92e8c052ff831f0726c980e1acef957a4c56e
+|   |   |       
+|   |   +---ce
+|   |   |       4bd7c872183eaa7c943927b968b79abce7088e
+|   |   |       a3ea2a522f576f8d94f1dbfec56c5508b95c9e
+|   |   |       
+|   |   +---d2
+|   |   |       ee9efbb547c900ee64f60f45bec3655a0954d0
+|   |   |       
+|   |   +---d3
+|   |   |       f4504c8d528d5213c4d8a5d7a344cacee8530e
+|   |   |       
+|   |   +---d5
+|   |   |       a14de3f748545c38747fa91dcca947b841f315
+|   |   |       
+|   |   +---d7
+|   |   |       4769c00ae5702b97d7dce864e83bce1a569d83
+|   |   |       963c605131b7f4b241b88be16dfad478255eff
+|   |   |       b87104a8a06746141c95ee4e8ea1ae64e3caee
+|   |   |       
+|   |   +---d8
+|   |   |       21eec9857367c67f53bac715bf1f6aebb657d1
+|   |   |       
+|   |   +---d9
+|   |   |       953993e27eee7781236863957d9220da0317da
+|   |   |       dbf349e2d08bdb592963cfe3b86347be2eef3a
+|   |   |       
+|   |   +---da
+|   |   |       53e0b5caed5ba253bc8c527980689f215b2f1e
+|   |   |       af76f5ff2cfce1a3de16524996112f16f4c7f6
+|   |   |       b5aa139f62de49667514ae3a80a3a8e6de92e9
+|   |   |       
+|   |   +---dc
+|   |   |       1b2499d934a547d56904504486d63132e2b126
+|   |   |       
+|   |   +---dd
+|   |   |       0ab3e6635d91b2c7e345e20fcb92e09f0e06f1
+|   |   |       0c156a23d603ae2d396a1ce76f75ae5b6d1fa1
+|   |   |       b64ca3111e00cd6c46c7ebfadd33417198b047
+|   |   |       
+|   |   +---de
+|   |   |       00c2d54eb8b614c1a034b697180e5e6b9b8197
+|   |   |       
+|   |   +---e0
+|   |   |       5e63325a20b1f2335bfa07d3102cc3a5a9c1bb
+|   |   |       9015ecf32dd040e2bf6bc860da6379b94ae6ad
+|   |   |       
+|   |   +---e1
+|   |   |       113917fa6f6996b07a0d5b700198fe7881d9cf
+|   |   |       
+|   |   +---e4
+|   |   |       4d0fe19f5e97b6283f025801e82ccf292a8cc9
+|   |   |       5973b1e1b43c04c47274ba5830a3a5b86bd0fa
+|   |   |       
+|   |   +---e5
+|   |   |       8a3b041b22f87d2444d75a1b4a1428d10455b6
+|   |   |       fb816278046230c8e2e6fb9aefd046d1d8d79d
+|   |   |       
+|   |   +---e7
+|   |   |       06f53f09e9bb1c6140abf2d282a86fe985638f
+|   |   |       
+|   |   +---e9
+|   |   |       b4a70805a4066e828d38b7bb957971503f5367
+|   |   |       f9fbd0146b7fad837af93e8805f8080a897d16
+|   |   |       fc23547057199c671508a2b9cb85230fb43080
+|   |   |       
+|   |   +---ea
+|   |   |       2080f561b355538daca592b39c418e96a7c946
+|   |   |       f91ca7da2f879c53113179412e8287ac09b7da
+|   |   |       
+|   |   +---eb
+|   |   |       44f5d98d806970c0cc9c26d1e3c18b1e4dfa0f
+|   |   |       
+|   |   +---ee
+|   |   |       19b17a64e686804433b38f95b0136eb5289627
+|   |   |       32e6aa70b16e5d4918b62f2e109856e4d2645f
+|   |   |       
+|   |   +---ef
+|   |   |       bb16ef1618ca82119348f808029d0999131e58
+|   |   |       c38f8b31a3a24e03b29793c58f2ee54b194678
+|   |   |       
+|   |   +---f0
+|   |   |       7c1981a5b3f413d1d491b582ce3ea5db4d52af
+|   |   |       
+|   |   +---f1
+|   |   |       8060cb557ca46c449cb74de11a2edd7f58eb5c
+|   |   |       
+|   |   +---f5
+|   |   |       458ea48beb6036837007d614425009eeb058fb
+|   |   |       b8485d23225487c59ffc11f25b4f1fb36d55c0
+|   |   |       
+|   |   +---f6
+|   |   |       99773d1f477cd93d2a045da111d0fb2ad1a7fe
+|   |   |       fc7dcfe6591b1c356fc5cbcb30d769f1bc9d56
+|   |   |       
+|   |   +---f7
+|   |   |       5556f00e698ab9b7286150743c80dc8472d4cd
+|   |   |       d864f6c59802f9d497be965a32007c6db4a533
+|   |   |       
+|   |   +---f8
+|   |   |       6683883851b7ec6316824d896f955a60ac18c3
+|   |   |       
+|   |   +---fa
+|   |   |       908bb091d2de2feb7c831cc656b20f4a55468e
+|   |   |       c09ed84f591a59948b3c0e89ee866902e109ad
+|   |   |       cd37e700e5f850c196e8bb203159bff71fd137
+|   |   |       
+|   |   +---fb
+|   |   |       2039e641a3b4b6e1e63147a68fc9625f5f942b
+|   |   |       2d55286b9d37f9359af8500c7c43c76d1342cb
+|   |   |       
+|   |   +---fd
+|   |   |       3d526fa54d43d2ad7220211c0969f0da195fed
+|   |   |       afcb634c56f4b63c6ac6478fcbe500647ee518
+|   |   |       fcb267e143c541b4ec83a62c5c5018b26c483b
+|   |   |       
+|   |   +---ff
+|   |   |       497654eefa2a724711c1b7330fae7dbdfd0adc
+|   |   |       fb16f4ae10494404b6e12b42adeb15971f4b2c
+|   |   |       
+|   |   +---info
+|   |   \---pack
+|   +---rebase-merge
+|   |       author-script
+|   |       done
+|   |       drop_redundant_commits
+|   |       end
+|   |       git-rebase-todo
+|   |       git-rebase-todo.backup
+|   |       head-name
+|   |       interactive
+|   |       message
+|   |       msgnum
+|   |       no-reschedule-failed-exec
+|   |       onto
+|   |       orig-head
+|   |       patch
+|   |       stopped-sha
+|   |       
+|   \---refs
+|       +---codex
+|       |   \---turn-diffs
+|       |       \---checkpoints
+|       |           \---917a351651cfdc44cee8d8e32456fb0c
+|       |               \---6078747e833798988c6fb285b975f6e0
+|       |                   \---1793502001393
+|       |                           42aa2f40-0555-4eec-b0b4-e8268d306a1e
+|       |                           
+|       +---heads
+|       |       main
+|       |       
+|       +---remotes
+|       |   \---origin
+|       |           HEAD
+|       |           main
+|       |           
+|       \---tags
++---bin
+|   \---Debug
+|       \---net8.0
+|           |   CelestialAerus.deps.json
+|           |   CelestialAerus.dll
+|           |   CelestialAerus.pdb
+|           |   
+|           \---Localization
+|                   en-US_Mods.CelestialAerus.hjson
+|                   
++---Buffs
+|       AndromedasRage.cs
+|       CelestialEmpowerment.cs
+|       CelestialFlames.cs
+|       CelestialHitEffects.cs
+|       CelestialObliteration.cs
+|       CrushedDefense.cs
+|       
++---Config
+|       CelestialAerusConfig.cs
+|       
++---Effects
+|       AethericPulse.fx
+|       AethericPulse.xnb
+|       AncientHatchetFlame.fx
+|       AncientHatchetFlame.xnb
+|       CelestialFireTrail.fx
+|       CelestialFireTrail.xnb
+|       CelestialFlame.fx
+|       CelestialFlame.xnb
+|       CelestialRibbon.fx
+|       CelestialRibbon.xnb
+|       CelestialTrail.fx
+|       CelestialTrail.xnb
+|       CosmicGlow.fx
+|       CosmicGlow.xnb
+|       EonBeam.fx
+|       EonBeam.xnb
+|       GalaxySwirl.fx
+|       GalaxySwirl.xnb
+|       HaloDraw.cs
+|       HomingHelper.cs
+|       SafeShaderDraw.cs
+|       ShaderManager.cs
+|       ShaderTrailDraw.cs
+|       TrailRecorder.cs
+|       
++---Items
+|       AncientHatchet.cs
+|       AndromedasWrath.cs
+|       ArkOfTheCelestials.cs
+|       BrigittesCharm.cs
+|       CelestialAerus.cs
+|       CelestialTempest.cs
+|       Cosmosis.cs
+|       NebulaBlazeSword.cs
+|       SpaceLaserRemote.cs
+|       TestWeapon.cs
+|       ThreadOfTheEmpyrean.cs
+|       
++---Localization
+|       en-US_Mods.CelestialAerus.hjson
+|       
++---obj
+|   |   CelestialAerus.csproj.nuget.dgspec.json
+|   |   CelestialAerus.csproj.nuget.g.props
+|   |   CelestialAerus.csproj.nuget.g.targets
+|   |   project.assets.json
+|   |   project.nuget.cache
+|   |   
+|   \---Debug
+|       \---net8.0
+|           |   .NETCoreApp,Version=v8.0.AssemblyAttributes.cs
+|           |   CelestialAerus.AssemblyInfo.cs
+|           |   CelestialAerus.AssemblyInfoInputs.cache
+|           |   CelestialAerus.assets.cache
+|           |   CelestialAerus.csproj.AssemblyReference.cache
+|           |   CelestialAerus.csproj.CoreCompileInputs.cache
+|           |   CelestialAerus.csproj.FileListAbsolute.txt
+|           |   CelestialAerus.dll
+|           |   CelestialAerus.GeneratedMSBuildEditorConfig.editorconfig
+|           |   CelestialAerus.pdb
+|           |   CelestialAerus.sourcelink.json
+|           |   
+|           +---ref
+|           |       CelestialAerus.dll
+|           |       
+|           \---refint
+|                   CelestialAerus.dll
+|                   
++---Players
+|       AerusPlayer.cs
+|       CharmGlobalProjectile.cs
+|       CharmPlayer.cs
+|       
++---Projectiles
+|       AncientHatchetMinion.cs
+|       AncientHatchetProjectile.cs
+|       AndromedaBeam.cs
+|       AndromedaSeeker.cs
+|       AndromedasWrathMinion.cs
+|       ArkOfTheCelestialsMinion.cs
+|       CelestialAerusMinion.cs
+|       CelestialFireball.cs
+|       CelestialTempestMinion.cs
+|       CosmoBeam.cs
+|       CosmoSeeker.cs
+|       CosmosisMinion.cs
+|       NebulaBlazeBolt.cs
+|       NebulaBlazeSwordMinion.cs
+|       SpaceLaserBeam.cs
+|       SpaceLaserRemoteMinion.cs
+|       TempestBeam.cs
+|       TempestStar.cs
+|       TestBolt.cs
+|       TestWeaponMinion.cs
+|       ThreadOfTheEmpyreanMinion.cs
+|       ThreadOfTheEmpyreanProjectile.cs
+|       ThrownCelestialAerus.cs
+|       TinyHatchet.cs
+|       
++---Properties
+|       launchSettings.json
+|       
++---QOL
+|       SuperToolsConfig.cs
+|       SuperToolsGlobalItem.cs
+|       SuperToolsPlayer.cs
+|       
++---Sounds
+|       AerusParryMissShatter.mp3
+|       AerusSlash.mp3
+|       CelestialBoomBig.wav
+|       CelestialWoosh.mp3
+|       ParryChime.mp3
+|       SpaceLaserRemote-Unused.mp3
+|       SuperBoom.mp3
+|       
++---Systems
+|       KeybindSystem.cs
+|       
+\---Textures
+        AncientHatchet.png
+        AndromedasWrath.png
+        ArkOfTheCelestials.png
+        BrigittesCharm.png
+        CelestialAerus.png
+        CelestialEmpowerment.png
+        CelestialFireball.png
+        CelestialObliteration.png
+        CelestialTempest.png
+        Cosmosis.png
+        icon.png
+        NebulaBlazeSword.png
+        SpaceLaserRemote.png
+        TempestStar.png
+        ThreadOfTheEmpyrean.png
+        

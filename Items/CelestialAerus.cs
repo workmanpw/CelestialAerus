@@ -2,9 +2,7 @@ using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
-using Terraria.Localization;
 using Terraria.ModLoader;
-using CelestialAerus.AerusBuffs;
 using CelestialAerus.Players;
 using CelestialAerus.Projectiles;
 
@@ -18,21 +16,12 @@ namespace CelestialAerus.Items
         {
         }
 
-        public override LocalizedText DisplayName => Language.GetOrRegister("Celestial Aerus");
-        public override LocalizedText Tooltip => Language.GetOrRegister(
-            "The legendary blade forged from the heart of a dying universe\n" +
-            "'When the last star falls, a new light is born'\n" +
-            "Shoots homing Celestial Fireballs and cosmic blades\n" +
-            "Switch between different attacks (default: V, rebindable)\n" +
-            "Heals 125 life on hit"
-        );
-
         public override void SetDefaults()
         {
             Item.width = 120;
             Item.height = 120;
             Item.damage = 300;
-            Item.useTime = 20;
+            Item.useTime = 14;
             Item.useAnimation = 14;
             Item.useStyle = ItemUseStyleID.Swing;
             Item.knockBack = 6f;
@@ -51,14 +40,30 @@ namespace CelestialAerus.Items
             var modPlayer = player.GetModPlayer<AerusPlayer>();
             if (modPlayer.aerusMode == 1)
             {
+                // Boomerang mode: configured exactly like the Ancient
+                // Hatchet so the blade throws on every swing — Shoot
+                // use-style, matching useTime/useAnimation, and the thrown
+                // blade as the item's shoot type so the vanilla shoot path
+                // spawns it (no Shoot override interference).
+                Item.useStyle = ItemUseStyleID.Shoot;
+                Item.useTime = 10;
+                Item.useAnimation = 10;
                 Item.noMelee = true;
                 Item.noUseGraphic = true;
+                Item.shoot = ModContent.ProjectileType<ThrownCelestialAerus>();
+                Item.shootSpeed = 22f;
                 Item.UseSound = SoundID.Item1;
             }
             else
             {
+                // Fireball mode: the swung sword.
+                Item.useStyle = ItemUseStyleID.Swing;
+                Item.useTime = 14;
+                Item.useAnimation = 14;
                 Item.noMelee = false;
                 Item.noUseGraphic = false;
+                Item.shoot = ModContent.ProjectileType<CelestialFireball>();
+                Item.shootSpeed = 20f;
                 Item.UseSound = SoundID.Item60;
             }
             return true;
@@ -78,23 +83,24 @@ namespace CelestialAerus.Items
 
             if (modPlayer.aerusMode == 1)
             {
-                Projectile.NewProjectile(
-                    source, position, velocity,
-                    ModContent.ProjectileType<ThrownCelestialAerus>(),
-                    damage, knockBack, player.whoAmI
-                );
+                // Boomerang mode: Item.shoot is already the thrown blade
+                // (set in CanUseItem), so let the vanilla shoot path spawn
+                // it — exactly like the Ancient Hatchet.
+                return true;
             }
             else
             {
-                if (modPlayer.aerusFireballCooldown > 0)
-                    return false;
-
                 for (int i = 0; i < 6; i++)
                 {
                     Vector2 spawn = new(
                         Main.MouseWorld.X + Main.rand.Next(-Main.screenWidth / 2, Main.screenWidth / 2),
                         Main.MouseWorld.Y - 400 - i * 80
                     );
+                    // Original spawn speed (14) and stagger value (i*12)
+                    // restored 2026-11-14. NOTE: the fireball ignores ai[1]
+                    // — the stagger was dead data in the original and stays
+                    // dead. Do not implement stagger handling in the
+                    // fireball; it made the volley crawl.
                     Vector2 toCursor = Vector2.Normalize(Main.MouseWorld - spawn)
                         .RotatedByRandom(MathHelper.ToRadians(10f)) * 14f;
                     Projectile.NewProjectile(
@@ -103,8 +109,6 @@ namespace CelestialAerus.Items
                         player.whoAmI, 0f, i * 12f
                     );
                 }
-
-                modPlayer.aerusFireballCooldown = 12;
             }
 
             return false;
@@ -126,9 +130,9 @@ namespace CelestialAerus.Items
 
         public override void OnHitNPC(Player player, NPC target, NPC.HitInfo hit, int damageDone)
         {
+            // Heal only — the mod-buff group (CelestialFlames /
+            // CrushedDefense) was removed 2026-11-14, temporarily.
             player.Heal(125);
-            target.AddBuff(ModContent.BuffType<CelestialFlames>(), 300);
-            target.AddBuff(ModContent.BuffType<CrushedDefense>(), 600);
         }
     }
 }

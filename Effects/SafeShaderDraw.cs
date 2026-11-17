@@ -50,6 +50,7 @@ namespace CelestialAerus.Effects
 
             // HAVE SHADER: restart SpriteBatch in Immediate mode, passing the effect to Begin().
             // SpriteBatch manages Apply()/unapply, so the effect does NOT leak onto later draws (dust, etc).
+            bool batchEnded = false;
             bool batchRestarted = false;
             try
             {
@@ -69,7 +70,7 @@ namespace CelestialAerus.Effects
                 }
                 catch { }
 
-                try { Main.spriteBatch.End(); } catch { }
+                try { Main.spriteBatch.End(); batchEnded = true; } catch { }
                 Main.spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend,
                     Main.DefaultSamplerState, DepthStencilState.None, Main.Rasterizer,
                     effect, Main.GameViewMatrix.TransformationMatrix);
@@ -79,15 +80,25 @@ namespace CelestialAerus.Effects
             }
             catch
             {
-                // Something failed mid-draw; attempt plain draw as last resort.
-                try { drawAction(); } catch { }
+                // Something failed mid-draw. Do NOT retry drawAction():
+                // the batch is still in Immediate mode with the effect
+                // applied, so a retry would neither be plain nor safe,
+                // and a partially-completed first draw could
+                // double-render. Skip the draw; the finally below
+                // restores the SpriteBatch to its normal state.
             }
             finally
             {
-                // Restore Terraria's SpriteBatch state ONLY if we restarted it.
-                if (batchRestarted)
+                // Restore Terraria's SpriteBatch state whenever we ended it —
+                // even if the Immediate Begin() threw before batchRestarted
+                // was set, the batch is un-begun and must be restored or all
+                // drawing breaks for the rest of the frame.
+                if (batchEnded)
                 {
-                    try { Main.spriteBatch.End(); } catch { }
+                    if (batchRestarted)
+                    {
+                        try { Main.spriteBatch.End(); } catch { }
+                    }
                     try
                     {
                         Main.spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,

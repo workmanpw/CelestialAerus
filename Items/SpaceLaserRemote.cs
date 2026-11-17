@@ -3,8 +3,6 @@ using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.DataStructures;
 using Microsoft.Xna.Framework;
-using Terraria.Localization;
-using CelestialAerus.AerusProjectiles;
 using CelestialAerus.Projectiles;
 using Terraria.Audio;
 
@@ -12,14 +10,11 @@ namespace CelestialAerus.Items;
 
 public class SpaceLaserRemote : ModItem
 {
-    public override string Texture => "Terraria/Images/Item_3785";
+    public override string Texture => "CelestialAerus/Textures/SpaceLaserRemote";
 
     public override void SetStaticDefaults()
     {
     }
-
-    public override LocalizedText DisplayName => Language.GetText("Space Laser Remote");
-    public override LocalizedText Tooltip => Language.GetText("A device of untold, unmatched power\nIt is extremely dangerous\nDo not use in towns\n'Make sure you point it away from yourself, lest you become a pile of ash.'");
 
     public override void SetDefaults()
     {
@@ -38,9 +33,8 @@ public class SpaceLaserRemote : ModItem
 
     public override bool Shoot(Player player, EntitySource_ItemUse_WithAmmo source, Vector2 position, Vector2 velocity, int type, int damage, float knockback)
     {
-        if (player.statLife <= 50)
-            return false;
-            
+        // Low-life gate lives in CanUseItem now; reaching Shoot() means the
+        // player has more than 50 life.
         player.statLife -= 50;
         player.HealEffect(-50);
         
@@ -63,7 +57,9 @@ public class SpaceLaserRemote : ModItem
 
     public override bool CanUseItem(Player player)
     {
-        return true;
+        // The remote costs 50 life per use; don't let the player start the
+        // 120-tick use animation at low life only to have it do nothing.
+        return player.statLife > 50;
     }
 
     public override void AddRecipes()

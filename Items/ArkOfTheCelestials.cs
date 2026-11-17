@@ -11,9 +11,6 @@ using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 using System.Linq;
 using System;
-using Terraria.Localization;
-using CelestialAerus.AerusProjectiles;
-using CelestialAerus.AerusBuffs;
 using CelestialAerus.Players;
 using CelestialAerus.Projectiles;
 
@@ -25,9 +22,6 @@ namespace CelestialAerus.Items
         public override void SetStaticDefaults()
         {
         }
-
-        public override LocalizedText DisplayName => Language.GetOrRegister("Ark Of The Celestials");
-        public override LocalizedText Tooltip => Language.GetOrRegister("Fires a spread of Celestial Fireballs that rapidly seek targets\n\"The universe is in your hands now\"\nHeals a large amount of life on hit");
 
         public override void SetDefaults()
         {
@@ -60,14 +54,6 @@ namespace CelestialAerus.Items
                 .Register();
         }
 
-        public override bool CanUseItem(Player player)
-        {
-            AerusPlayer modPlayer = player.GetModPlayer<AerusPlayer>();
-            if (modPlayer.arkCooldown > 0)
-                return false;
-            return true;
-        }
-
         public override bool Shoot(Player player, EntitySource_ItemUse_WithAmmo source, Vector2 position, Vector2 velocity, int type, int damage, float knockBack)
         {
             // Only shoot one group per click
@@ -88,7 +74,8 @@ namespace CelestialAerus.Items
                 // Calculate velocity towards cursor center
                 Vector2 fireVelocity = (cursorPos - spawnPos).SafeNormalize(Vector2.UnitX) * 10f;
                 
-                // Spawn fireball with delay
+                // The fireball ignores ai[1] — the whole volley homes at
+                // once by design (stagger removed 2026-11-14).
                 Projectile.NewProjectile(
                     source,
                     spawnPos,
@@ -96,23 +83,18 @@ namespace CelestialAerus.Items
                     ModContent.ProjectileType<CelestialFireball>(),
                     damage,
                     knockBack,
-                    player.whoAmI,
-                    ai1: i * 15 // Delay index (15 frames = 1/4 second)
+                    player.whoAmI
                 );
             }
-            
+
             return false;
         }
 
         public override void OnHitNPC(Player player, NPC target, NPC.HitInfo hit, int damageDone)
         {
+            // Heal only — the mod-buff group (CelestialFlames /
+            // CrushedDefense) was removed 2026-11-14, temporarily.
             player.Heal(250);
-            
-            // Apply CelestialFlames debuff to target
-            target.AddBuff(ModContent.BuffType<CelestialFlames>(), 300);
-            
-            // Apply CrushedDefense debuff to target
-            target.AddBuff(ModContent.BuffType<CrushedDefense>(), 600);
         }
     }
 }

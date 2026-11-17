@@ -11,9 +11,26 @@ namespace CelestialAerus.Effects
     /// <summary>
     /// Draws smooth, variable-width ribbon trails from projectile center positions.
     /// The vertex colors carry the fade so alpha is applied only once by blending.
+    ///
+    /// Redesigned 2026-11-14 (same visuals, safe by construction):
+    /// - The point/rotation arrays are allocated fresh per call, sized exactly
+    ///   to pointCount. VertexStrip.PrepareStrip loops over positions.Length —
+    ///   the array length IS the point count as far as the strip is concerned
+    ///   (the expectedVertexPairsAmount argument only affects progress
+    ///   interpolation). A reusable buffer that only grows leaks stale points
+    ///   from other projectiles' trails into this ribbon — that was the
+    ///   "trails flying across the screen" bug. Do NOT "optimize" this back
+    ///   into shared buffers. (Verified by decompiling
+    ///   Terraria.Graphics.VertexStrip.PrepareStrip.)
+    /// - The whole draw is fail-safe: any failure drops this ribbon for one
+    ///   frame and the game continues. A cosmetic trail must never break the
+    ///   frame or leave the SpriteBatch in a bad state.
     /// </summary>
     public static class ShaderTrailDraw
     {
+        // One shared strip is safe: PrepareStrip copies the points into the
+        // strip's own vertex array, and PrepareStrip + DrawTrail always run
+        // back-to-back inside this method, on the main thread.
         private static VertexStrip _strip;
 
         public static Color WithAlpha(Color color, float alpha)
@@ -35,6 +52,8 @@ namespace CelestialAerus.Effects
                 pointCount > positions.Count || colorFunction == null || widthFunction == null)
                 return;
 
+            // Exact-size arrays — see the class doc. Never reuse a buffer
+            // here: PrepareStrip reads positions.Length entries.
             Vector2[] points = new Vector2[pointCount];
             float[] rotations = new float[pointCount];
 
@@ -62,8 +81,21 @@ namespace CelestialAerus.Effects
             bool restarted = false;
             try
             {
-                Main.spriteBatch.End();
-                restarted = true;
+                try
+                {
+                    Main.spriteBatch.End();
+                    restarted = true;
+                }
+                catch
+                {
+                    // If the batch can't be ended (e.g. it was never
+                    // begun), the ribbon can't be drawn in Immediate mode
+                    // — skip it this frame rather than letting the
+                    // exception break the caller's PreDraw. The finally
+                    // below is a no-op here (restarted is false), so the
+                    // batch is left in its original begun state.
+                    return;
+                }
 
                 Effect effect = null;
                 if (!string.IsNullOrEmpty(shaderName))
@@ -115,13 +147,23 @@ namespace CelestialAerus.Effects
 
                 try { device.Textures[0] = previousTexture; } catch { }
             }
+            catch
+            {
+                // Fail-safe: a trail is cosmetic. If anything goes wrong
+                // mid-draw, drop this ribbon for one frame and let the game
+                // continue. The finally below still restores the batch.
+            }
             finally
             {
                 if (restarted)
                 {
-                    Main.spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
-                        Main.DefaultSamplerState, DepthStencilState.None, Main.Rasterizer,
-                        null, Main.GameViewMatrix.TransformationMatrix);
+                    try
+                    {
+                        Main.spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
+                            Main.DefaultSamplerState, DepthStencilState.None, Main.Rasterizer,
+                            null, Main.GameViewMatrix.TransformationMatrix);
+                    }
+                    catch { }
                 }
             }
         }

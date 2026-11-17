@@ -5,33 +5,24 @@ using Microsoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
-using Terraria.Localization;
 using Terraria.GameContent;
 using Terraria.Audio;
 using Terraria.DataStructures;
-using CelestialAerus.AerusBuffs;
 using CelestialAerus.Effects;
 
-namespace CelestialAerus.AerusProjectiles
+namespace CelestialAerus.Projectiles
 {
     public class TempestStar : ModProjectile
     {
         public override string Texture => "CelestialAerus/Textures/TempestStar";
 
-        private readonly List<Vector2> trailPositions = new List<Vector2>();
+        private readonly TrailRecorder trail = new TrailRecorder(MaxTrail);
         private const int MaxTrail = 20;
         private const float SpinSpeed = 0.3f;
 
-        public override void SetStaticDefaults()
-        {
-            ProjectileID.Sets.TrailCacheLength[Type] = 8;
-            ProjectileID.Sets.TrailingMode[Type] = 2;
-        }
-
-        public override LocalizedText DisplayName => Language.GetOrRegister("Tempest Star");
-
         public override void SetDefaults()
         {
+            // Hitbox already matches the drawn sprite: 32x32 texture at scale 1.
             Projectile.width = 32;
             Projectile.height = 32;
             Projectile.friendly = true;
@@ -44,6 +35,7 @@ namespace CelestialAerus.AerusProjectiles
             Projectile.usesLocalNPCImmunity = true;
             Projectile.localNPCHitCooldown = 12;
             Projectile.aiStyle = -1;
+            Projectile.timeLeft = 450;
         }
 
         public override void AI()
@@ -57,9 +49,7 @@ namespace CelestialAerus.AerusProjectiles
 
             Projectile.rotation += SpinSpeed;
 
-            trailPositions.Add(Projectile.Center);
-            if (trailPositions.Count > MaxTrail)
-                trailPositions.RemoveAt(0);
+            trail.Record(Projectile.Center);
 
             float hue = (Main.GlobalTimeWrappedHourly * 0.6f) % 1f;
             Color rainbowColor = Main.hslToRgb(hue, 1f, 0.7f);
@@ -107,8 +97,8 @@ namespace CelestialAerus.AerusProjectiles
             float trailHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
 
             ShaderTrailDraw.Draw(
-                trailPositions,
-                trailPositions.Count,
+                trail.Positions,
+                trail.Count,
                 progress =>
                 {
                     float hue = (Main.GlobalTimeWrappedHourly * 0.6f + progress * 0.14f) % 1f;
@@ -142,41 +132,59 @@ namespace CelestialAerus.AerusProjectiles
 
         public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
         {
-            // Signature debuffs.
-            target.AddBuff(ModContent.BuffType<CelestialFlames>(), 600);
-            target.AddBuff(ModContent.BuffType<CrushedDefense>(), 600);
+            Player player = Projectile.owner >= 0 && Projectile.owner < Main.maxPlayers
+                ? Main.player[Projectile.owner]
+                : null;
 
-            if (Projectile.owner >= 0 && Projectile.owner < Main.maxPlayers)
+            // Heal only: the Celestial hit bundle (buffs/debuffs) was
+            // removed temporarily — Peyton has a better idea coming.
+            // The 75 heal stays so the tooltip remains true.
+            if (player != null && player.active)
             {
-                Player player = Main.player[Projectile.owner];
-                if (player != null && player.active)
-                {
-                    player.Heal(75);
-                    player.HealEffect(75);
-
-                    // Flat buff bundle.
-                    player.AddBuff(BuffID.Battle, 600);
-                    player.AddBuff(BuffID.WellFed, 600);
-                    player.AddBuff(BuffID.Wrath, 600);
-                    player.AddBuff(BuffID.Rage, 600);
-                    player.AddBuff(BuffID.MagicPower, 600);
-                    player.AddBuff(BuffID.Ironskin, 600);
-                    player.AddBuff(BuffID.RapidHealing, 600);
-
-                    // Biome + full debuff list from the shared helper.
-                    CelestialHitEffects.ApplyPlayerBiomeBuffs(player);
-                    CelestialHitEffects.ApplyEnemyDebuffs(target);
-
-                    // Pass the source through so the static method doesn't need
-                    // to reach back into Projectile.
-                    SpawnBiomeProjectiles(player, target.Center, target, Projectile.GetSource_OnHit(target));
-                }
+                int healAmount = 75;
+                if (player.statLife + healAmount > player.statLifeMax2)
+                    healAmount = player.statLifeMax2 - player.statLife;
+                player.Heal(healAmount);
+                player.HealEffect(healAmount);
             }
 
+            // Owner only: OnHitNPC runs on every client, so an unguarded
+            // spawn would create one biome projectile per client.
+            // Pass the star's own damage so the biome projectile scales
+            // with the weapon instead of a flat 250.
+            if (player != null && player.active && Projectile.owner == Main.myPlayer)
+                SpawnBiomeProjectiles(player, target.Center, target, Projectile.GetSource_OnHit(target), Projectile.damage);
+
             SoundEngine.PlaySound(SoundID.Item14, Projectile.Center);
+
+            if (Main.netMode == NetmodeID.Server)
+                return;
+
+            for (int i = 0; i < 35; i++)
+            {
+                int dust = Dust.NewDust(
+                    Projectile.position, Projectile.width, Projectile.height,
+                    DustID.RainbowTorch, 0f, 0f, 100, default, 2f);
+                Main.dust[dust].velocity *= 3f;
+                Main.dust[dust].noGravity = true;
+                Main.dust[dust].color = new Color(
+                    Main.rand.Next(80, 150),
+                    Main.rand.Next(200, 256),
+                    Main.rand.Next(180, 256));
+            }
+
+            for (int i = 0; i < 25; i++)
+            {
+                int spark = Dust.NewDust(
+                    Projectile.position, Projectile.width, Projectile.height,
+                    DustID.GoldFlame, 0f, 0f, 50, default, 2f);
+                Main.dust[spark].velocity *= 2f;
+                Main.dust[spark].noGravity = true;
+                Main.dust[spark].color = new Color(200, 255, 230, 150);
+            }
         }
 
-        private static void SpawnBiomeProjectiles(Player player, Vector2 targetPosition, NPC target, IEntitySource source)
+        private static void SpawnBiomeProjectiles(Player player, Vector2 targetPosition, NPC target, IEntitySource source, int starDamage)
         {
             bool holy = player.ZoneHallow;
             bool nebula = player.ZoneTowerNebula;
@@ -198,7 +206,9 @@ namespace CelestialAerus.AerusProjectiles
             bool bloodMoon = Main.bloodMoon;
 
             int projectileType = ProjectileID.Bullet;
-            int damage = 250;
+            // Scales with the weapon: 25% of the star's damage, the same
+            // fraction the mod's seekers use (was a flat 250).
+            int damage = (int)(starDamage * 0.25f);
 
             if (solar) projectileType = ProjectileID.Daybreak;
             else if (nebula) projectileType = ProjectileID.NebulaBlaze1;
@@ -209,7 +219,7 @@ namespace CelestialAerus.AerusProjectiles
             else if (corrupt) projectileType = ProjectileID.TinyEater;
             else if (crimson) projectileType = ProjectileID.VampireKnife;
             else if (forest) projectileType = ProjectileID.TerrarianBeam;
-            else if (mushroom) projectileType = 131;
+            else if (mushroom) projectileType = ProjectileID.Mushroom;
             else if (desert) projectileType = ProjectileID.BlackBolt;
             else if (player.ZoneBeach) projectileType = ProjectileID.FlaironBubble;
             else if (player.ZoneSnow) projectileType = ProjectileID.FrostBoltSword;
@@ -220,7 +230,7 @@ namespace CelestialAerus.AerusProjectiles
             else if (space) projectileType = ProjectileID.FallingStar;
 
             Vector2 velocity = new Vector2(Main.rand.NextFloat(-6f, 6f), Main.rand.NextFloat(-6f, 6f));
-            velocity.Normalize();
+            velocity = velocity.SafeNormalize(Vector2.UnitX);
             velocity *= Main.rand.NextFloat(8f, 14f);
 
             int newProjectile = Projectile.NewProjectile(
@@ -232,8 +242,17 @@ namespace CelestialAerus.AerusProjectiles
                 2f,
                 player.whoAmI
             );
-            Main.projectile[newProjectile].usesLocalNPCImmunity = false;
-            Main.projectile[newProjectile].localNPCHitCooldown = 0;
+            if (newProjectile >= 0 && newProjectile < Main.maxProjectiles)
+            {
+                Main.projectile[newProjectile].usesLocalNPCImmunity = false;
+                Main.projectile[newProjectile].localNPCHitCooldown = 0;
+                // Some biome picks are enemy projectiles by default
+                // (e.g. TinyEater): force them friendly so they can never
+                // hurt the player.
+                Main.projectile[newProjectile].friendly = true;
+                Main.projectile[newProjectile].hostile = false;
+                Main.projectile[newProjectile].netUpdate = true;
+            }
         }
     }
 }

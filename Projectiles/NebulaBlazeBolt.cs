@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Terraria;
@@ -7,14 +8,16 @@ using Terraria.Audio;
 using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.ModLoader;
-using Terraria.Localization;
 using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
 {
     public class NebulaBlazeBolt : ModProjectile
     {
-        // Homing settings.
+        // Homing settings. Original values restored 2026-11-14
+        // (extraUpdates is 1 again, so these run twice per tick as
+        // originally tuned). Range stays at the 1600 Peyton ordered
+        // 2026-11-13.
         private const float HomingRange = 700f;
         private const float HomingSpeed = 20f;
         private const float HomingStrength = 0.15f;
@@ -27,25 +30,40 @@ namespace CelestialAerus.Projectiles
         private int homingDelay = 0;
         private int lastHitNPC = -1;
 
+        // Damage at spawn, before bounce reductions. The third-hit explosion
+        // is 2x the ORIGINAL damage, not 2x the twice-reduced damage.
+        private int originalDamage = 0;
+
         // Explosion state.
         private bool hasExploded = false;
 
         // Continuous ribbon trail history.
-        private readonly List<Vector2> trailPositions = new List<Vector2>();
-        private const int MaxTrail = 14;
+        private readonly TrailRecorder trail = new TrailRecorder(MaxTrail);
+        private const int MaxTrail = 22;
+
+        // True nebula palette: the colors of real emission nebulae —
+        // ionized hydrogen pink, oxygen teal, and star-forming violet.
+        private static readonly Color[] NebulaPalette =
+        {
+            new Color(138, 43, 226),  // violet
+            new Color(255, 0, 255),   // magenta
+            new Color(255, 20, 147),  // deep pink (hydrogen alpha)
+            new Color(0, 206, 209),   // teal (ionized oxygen)
+            new Color(220, 20, 60),   // crimson
+        };
 
         // Texture and display name.
         public override string Texture =>
             "CelestialAerus/Textures/NebulaBlazeSword";
 
-        public override LocalizedText DisplayName =>
-            Language.GetOrRegister("Nebula Blaze Bolt");
-
         // Projectile defaults.
         public override void SetDefaults()
         {
-            Projectile.width = 18;
-            Projectile.height = 18;
+            // Hitbox matches the sprite size: 120x120 texture
+            // (Projectile.scale is 1; the 0.55 spriteScale in PreDraw
+            // only shrinks the drawn image, not the hitbox).
+            Projectile.width = 120;
+            Projectile.height = 120;
 
             Projectile.friendly = true;
             Projectile.DamageType = DamageClass.Melee;
@@ -73,6 +91,10 @@ namespace CelestialAerus.Projectiles
         // Projectile AI.
         public override void AI()
         {
+            // Capture the spawn damage before any bounce reductions apply.
+            if (originalDamage == 0)
+                originalDamage = Projectile.damage;
+
             // Set the projectile rotation to match its velocity.
             Projectile.rotation =
                 Projectile.velocity.ToRotation();
@@ -86,37 +108,42 @@ namespace CelestialAerus.Projectiles
             );
 
             // Track the flight path for the continuous ribbon trail.
-            trailPositions.Add(Projectile.Center);
-            if (trailPositions.Count > MaxTrail)
-                trailPositions.RemoveAt(0);
+            trail.Record(Projectile.Center);
 
-            // Create the pink and purple trail.
+            // Nebula trail dust: wisps of colored interstellar gas that
+            // drift off the bolt and hang in the air behind it.
             if (Main.rand.NextBool(2))
             {
-                int dustType =
-                    Main.rand.NextBool()
-                        ? DustID.PinkTorch
-                        : DustID.PurpleTorch;
-
-                int dust = Dust.NewDust(
-                    Projectile.position,
-                    Projectile.width,
-                    Projectile.height,
-                    dustType,
-                    0f,
-                    0f,
+                Dust gas = Dust.NewDustPerfect(
+                    Projectile.Center +
+                        Main.rand.NextVector2Circular(6f, 6f),
+                    DustID.PurpleTorch,
+                    -Projectile.velocity * 0.08f +
+                        Main.rand.NextVector2Circular(1.5f, 1.5f),
                     100,
-                    default,
-                    1.4f
+                    NebulaPalette[Main.rand.Next(NebulaPalette.Length)],
+                    Main.rand.NextFloat(0.9f, 1.7f)
                 );
+                if (gas != null)
+                    gas.noGravity = true;
+            }
 
-                Main.dust[dust].noGravity = true;
-
-                Main.dust[dust].velocity =
-                    -Projectile.velocity * 0.08f;
-
-                Main.dust[dust].scale =
-                    Main.rand.NextFloat(0.8f, 1.5f);
+            // Occasional star sparkle streaking behind the bolt.
+            if (Main.rand.NextBool(6))
+            {
+                Dust spark = Dust.NewDustPerfect(
+                    Projectile.Center,
+                    DustID.FireworksRGB,
+                    -Projectile.velocity * 0.35f +
+                        Main.rand.NextVector2Circular(2f, 2f),
+                    0,
+                    Main.rand.NextBool()
+                        ? Color.White
+                        : new Color(150, 220, 255),
+                    Main.rand.NextFloat(0.6f, 1.0f)
+                );
+                if (spark != null)
+                    spark.noGravity = true;
             }
 
             // Apply the bounce delay.
@@ -191,11 +218,12 @@ namespace CelestialAerus.Projectiles
         {
             lastHitNPC = target.whoAmI;
 
-            // Explode on the third hit.
+            // Explode on the third hit (2x the ORIGINAL damage, before the
+            // 0.75x-per-bounce reductions).
             if (bounceCount >= MaxBounces)
             {
                 int explosionDamage =
-                    Projectile.damage * 2;
+                    (originalDamage > 0 ? originalDamage : Projectile.damage) * 2;
 
                 Explode(explosionDamage);
 
@@ -240,6 +268,30 @@ namespace CelestialAerus.Projectiles
                         Vector2.Zero
                     ) * HomingSpeed;
             }
+
+            // Sync the mutated damage / bounce state to other clients.
+            Projectile.netUpdate = true;
+        }
+
+        // Sync the bolt's AI state so non-owner clients simulate the same
+        // bounce/homing decisions instead of diverging between automatic
+        // syncs. Order and types must match ReceiveExtraAI exactly.
+        public override void SendExtraAI(BinaryWriter writer)
+        {
+            writer.Write((short)bounceCount);
+            writer.Write((short)homingDelay);
+            writer.Write((short)lastHitNPC);
+            writer.Write(originalDamage);
+            writer.Write(hasExploded);
+        }
+
+        public override void ReceiveExtraAI(BinaryReader reader)
+        {
+            bounceCount = reader.ReadInt16();
+            homingDelay = reader.ReadInt16();
+            lastHitNPC = reader.ReadInt16();
+            originalDamage = reader.ReadInt32();
+            hasExploded = reader.ReadBoolean();
         }
 
         // Find the nearest valid target.
@@ -304,74 +356,70 @@ namespace CelestialAerus.Projectiles
                 Projectile.Center
             );
 
-            // Create the large pink and purple dust cloud.
-            for (int i = 0; i < 120; i++)
+            // Layer 1: white-hot core flash — the heart of a newborn star.
+            for (int i = 0; i < 30; i++)
             {
-                int dustType =
-                    Main.rand.NextBool()
-                        ? DustID.PinkTorch
-                        : DustID.PurpleTorch;
-
-                int dust = Dust.NewDust(
-                    Projectile.Center -
-                        new Vector2(90f, 90f),
-                    180,
-                    180,
-                    dustType,
-                    0f,
-                    0f,
-                    100,
-                    default,
-                    Main.rand.NextFloat(1.5f, 3.5f)
+                Dust flash = Dust.NewDustPerfect(
+                    Projectile.Center +
+                        Main.rand.NextVector2Circular(30f, 30f),
+                    DustID.FireworksRGB,
+                    Main.rand.NextVector2Circular(12f, 12f),
+                    0,
+                    Color.White,
+                    Main.rand.NextFloat(1.2f, 2.0f)
                 );
-
-                Main.dust[dust].noGravity = true;
-
-                Vector2 direction =
-                    Main.dust[dust].position -
-                    Projectile.Center;
-
-                direction =
-                    direction.SafeNormalize(
-                        Main.rand.NextVector2Unit()
-                    );
-
-                Main.dust[dust].velocity =
-                    direction *
-                    Main.rand.NextFloat(2f, 8f);
-
-                Main.dust[dust].scale =
-                    Main.rand.NextFloat(1.5f, 3.5f);
+                if (flash != null)
+                    flash.noGravity = true;
             }
 
-            // Create the bright central particles.
-            for (int i = 0; i < 45; i++)
+            // Layer 2: expanding nebula gas in true nebula colors,
+            // drifting outward with turbulence so the clouds curl and
+            // billow like real interstellar gas instead of flying in
+            // straight lines.
+            for (int i = 0; i < 90; i++)
             {
-                int dustType =
-                    Main.rand.NextBool()
-                        ? DustID.PinkTorch
-                        : DustID.PurpleTorch;
+                Vector2 offset = Main.rand.NextVector2Circular(90f, 90f);
+                Vector2 dir =
+                    offset.SafeNormalize(Main.rand.NextVector2Unit());
+                Vector2 swirl =
+                    new Vector2(-dir.Y, dir.X) *
+                    Main.rand.NextFloat(-2f, 2f);
 
-                int dust = Dust.NewDust(
-                    Projectile.Center -
-                        new Vector2(35f, 35f),
-                    70,
-                    70,
-                    dustType,
-                    0f,
-                    0f,
-                    50,
-                    default,
-                    Main.rand.NextFloat(2f, 4f)
+                Dust gas = Dust.NewDustPerfect(
+                    Projectile.Center + offset,
+                    DustID.PurpleTorch,
+                    dir * Main.rand.NextFloat(2f, 7f) + swirl,
+                    100,
+                    NebulaPalette[Main.rand.Next(NebulaPalette.Length)],
+                    Main.rand.NextFloat(1.8f, 3.6f)
                 );
+                if (gas != null)
+                    gas.noGravity = true;
+            }
 
-                Main.dust[dust].noGravity = true;
+            // Layer 3: newborn star sparks streaking out of the cloud.
+            for (int i = 0; i < 40; i++)
+            {
+                Vector2 dir =
+                    Main.rand.NextVector2Circular(1f, 1f)
+                        .SafeNormalize(Vector2.UnitX);
+                Color starColor = Main.rand.Next(3) switch
+                {
+                    0 => Color.White,
+                    1 => new Color(150, 220, 255),
+                    _ => new Color(255, 220, 130),
+                };
 
-                Main.dust[dust].velocity =
-                    Main.rand.NextVector2Circular(
-                        9f,
-                        9f
-                    );
+                Dust star = Dust.NewDustPerfect(
+                    Projectile.Center,
+                    DustID.FireworksRGB,
+                    dir * Main.rand.NextFloat(8f, 16f),
+                    0,
+                    starColor,
+                    Main.rand.NextFloat(0.7f, 1.2f)
+                );
+                if (star != null)
+                    star.noGravity = true;
             }
 
             // Add strong pink and purple explosion light.
@@ -382,8 +430,11 @@ namespace CelestialAerus.Projectiles
                 1.2f
             );
 
-            // Create the damaging explosion projectile.
-            if (damage > 0)
+            // Create the damaging explosion projectile. Owner only: OnKill runs
+            // on every client, so an unguarded spawn would create one explosion
+            // per client and multiply the damage in multiplayer. (Dust and
+            // sound above stay unguarded — they are local effects.)
+            if (damage > 0 && Projectile.owner == Main.myPlayer)
             {
                 int explosion =
                     Projectile.NewProjectile(
@@ -420,26 +471,27 @@ namespace CelestialAerus.Projectiles
             // and tapering to a thin tail.
             float trailStartOffset =
                 texture.Height * 0.5f * spriteScale;
-            float trailHalfWidth =
-                Math.Max(Projectile.width, Projectile.height) * 0.5f * spriteScale; // VertexStrip treats this as a half-width
+            // Fixed trail width, decoupled from the hitbox (2026-11-14):
+            // the hitbox is now the full 120x120 sprite, but deriving the
+            // ribbon width from it blew the trail up ~7x. 4.95 restores
+            // the pre-fix-pass ribbon. VertexStrip treats this as a
+            // half-width.
+            float trailHalfWidth = 4.95f;
 
             ShaderTrailDraw.Draw(
-                trailPositions,
-                trailPositions.Count,
+                trail.Positions,
+                trail.Count,
                 progress => ShaderTrailDraw.WithAlpha(
-                    Color.Lerp(
-                        new Color(90, 15, 120),
-                        new Color(255, 110, 235),
-                        progress),
-                    progress * progress * 0.85f),
-                progress => trailHalfWidth * (float)Math.Pow(progress, 1.15f),
+                    NebulaTrailColor(progress),
+                    progress * progress * 0.95f),
+                progress => trailHalfWidth * 1.3f * (float)Math.Pow(progress, 1.15f),
                 "CelestialRibbon",
                 effect =>
                 {
                     SafeShaderDraw.Set(effect, "TrailStartColor", Color.White);
                     SafeShaderDraw.Set(effect, "TrailEndColor", Color.White);
                     SafeShaderDraw.Set(effect, "TrailPulseSpeed", 6f);
-                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.22f);
+                    SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.3f);
                 },
                 trailStartOffset);
 
@@ -480,6 +532,32 @@ namespace CelestialAerus.Projectiles
                     SafeShaderDraw.Set(effect, "GlowRotates", 1f);
                     SafeShaderDraw.Set(effect, "GlowRotationSpeed", 0.8f);
                 });
+        }
+
+        // Multi-stop nebula gradient for the ribbon trail: deep space
+        // violet at the tail, through magenta and hydrogen pink, to
+        // pale starlight at the head. Progress 0 = tail, 1 = head.
+        private static Color NebulaTrailColor(float progress)
+        {
+            if (progress < 0.25f)
+                return Color.Lerp(
+                    new Color(48, 0, 96),
+                    new Color(138, 43, 226),
+                    progress / 0.25f);
+            if (progress < 0.5f)
+                return Color.Lerp(
+                    new Color(138, 43, 226),
+                    new Color(255, 0, 255),
+                    (progress - 0.25f) / 0.25f);
+            if (progress < 0.75f)
+                return Color.Lerp(
+                    new Color(255, 0, 255),
+                    new Color(255, 105, 180),
+                    (progress - 0.5f) / 0.25f);
+            return Color.Lerp(
+                new Color(255, 105, 180),
+                new Color(220, 240, 255),
+                (progress - 0.75f) / 0.25f);
         }
 
         // Set the projectile color.
@@ -536,8 +614,6 @@ namespace CelestialAerus.Projectiles
         public override void AI()
         {
             Projectile.velocity = Vector2.Zero;
-
-            Projectile.Center = Projectile.Center;
 
             Lighting.AddLight(
                 Projectile.Center,

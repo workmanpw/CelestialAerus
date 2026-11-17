@@ -8,7 +8,6 @@ using Terraria.GameContent;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Terraria.Audio;
-using Terraria.Localization;
 using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
@@ -16,7 +15,7 @@ namespace CelestialAerus.Projectiles
     public class CelestialFireball : ModProjectile
     {
         // Trail storage
-        private List<Vector2> trailPositions = new List<Vector2>();
+        private readonly TrailRecorder trail = new TrailRecorder(MaxTrail);
         private const int MaxTrail = 15;
 
         public override string Texture => "CelestialAerus/Textures/CelestialFireball";
@@ -25,10 +24,9 @@ namespace CelestialAerus.Projectiles
         {
         }
 
-        public override LocalizedText DisplayName => Language.GetOrRegister("Celestial Fireball");
-
         public override void SetDefaults()
         {
+            // Hitbox already matches the drawn sprite: 36x36 texture at scale 1.
             Projectile.width = 36;
             Projectile.height = 36;
             Projectile.friendly = true;
@@ -46,9 +44,7 @@ namespace CelestialAerus.Projectiles
         public override void AI()
         {
             // --- Trail recording ---
-            trailPositions.Add(Projectile.Center);
-            if (trailPositions.Count > MaxTrail)
-                trailPositions.RemoveAt(0);
+            trail.Record(Projectile.Center);
 
             // --- Rotation & lighting ---
             Projectile.rotation += 0.2f;
@@ -56,10 +52,20 @@ namespace CelestialAerus.Projectiles
                 Main.DiscoR / 70f, Main.DiscoG / 70f, Main.DiscoB / 70f);
 
             // --- Homing (after a brief delay) ---
+            // NOTE: the fireball deliberately ignores ai[1]. The sword
+            // passes a per-fireball stagger value there, but the original
+            // code never read it — a fix-pass change once implemented it
+            // and it made the volley crawl. Do not re-add stagger handling.
+            // ORIGINAL AI restored 2026-11-15 (Peyton: the lock-on /
+            // prediction / turn-rate rework "feels unnatural"): loose
+            // Lerp steering, full scan every AI call, no lock-on, no
+            // prediction, no fizzle — if there's no target it just flies
+            // straight for its full 6-second life.
             Projectile.localAI[0]++;
             if (Projectile.localAI[0] > 10)
             {
-                float maxDetect = 500f, homingSpeed = 20f;
+                // Homing range buffed 2026-11-15 (Peyton): 500f -> 750f (+50%).
+                float maxDetect = 750f, homingSpeed = 20f;
                 NPC target = null;
                 float minDist = maxDetect;
                 foreach (NPC npc in Main.npc)
@@ -71,9 +77,13 @@ namespace CelestialAerus.Projectiles
                 if (target != null)
                 {
                     Vector2 to = target.Center - Projectile.Center;
+                    // SafeNormalize instead of the original's
+                    // Vector2.Normalize: identical except when the target
+                    // is exactly at the fireball's center, where the
+                    // original would produce NaN velocity.
                     Projectile.velocity = Vector2.Lerp(
                         Projectile.velocity,
-                        Vector2.Normalize(to) * homingSpeed,
+                        to.SafeNormalize(Vector2.Zero) * homingSpeed,
                         0.15f);
                 }
             }
@@ -90,11 +100,14 @@ namespace CelestialAerus.Projectiles
             float trailStartOffset = texture.Height * 0.5f * Projectile.scale;
             float trailHalfWidth = Math.Max(Projectile.width, Projectile.height) * 0.5f * Projectile.scale; // VertexStrip treats this as a half-width
 
+            // Rainbow recolor 2026-11-15 (Peyton): the trail uses the same
+            // disco rainbow as the Thread of the Empyrean's trail. Same
+            // mechanics, same length and shape — only the color changed.
             ShaderTrailDraw.Draw(
-                trailPositions,
-                trailPositions.Count,
+                trail.Positions,
+                trail.Count,
                 progress => ShaderTrailDraw.WithAlpha(
-                    Color.Lerp(new Color(255, 190, 70), new Color(255, 70, 12), progress),
+                    new Color(Main.DiscoR, Main.DiscoG, Main.DiscoB),
                     progress * progress * 0.78f),
                 progress => trailHalfWidth * (float)Math.Pow(progress, 1.15f),
                 "CelestialRibbon",
@@ -114,31 +127,36 @@ namespace CelestialAerus.Projectiles
                         Projectile.GetAlpha(lightColorCopy), Projectile.rotation, texture.Size() / 2f,
                         Projectile.scale, SpriteEffects.None, 0);
                 },
+                // Rainbow recolor 2026-11-15 (Peyton): the shader colors go
+                // white so the disco tint from GetAlpha is the fireball's
+                // only color — the same technique as the yoyo trail (white
+                // shader colors + disco vertex color). The fire's shape,
+                // flicker, and glow are untouched; only the color changed.
                 (effect) =>
                 {
                     SafeShaderDraw.Set(effect, "TrailWidth", 12f);
-                    SafeShaderDraw.Set(effect, "TrailStartColor", new Color(255, 179, 51));
-                    SafeShaderDraw.Set(effect, "TrailEndColor", new Color(230, 77, 0));
+                    SafeShaderDraw.Set(effect, "TrailStartColor", Color.White);
+                    SafeShaderDraw.Set(effect, "TrailEndColor", Color.White);
                     SafeShaderDraw.Set(effect, "TrailFades", 0f);
                     SafeShaderDraw.Set(effect, "TrailFadeSpeed", 1f);
                     SafeShaderDraw.Set(effect, "TrailPulseSpeed", 7f);
                     SafeShaderDraw.Set(effect, "TrailPulseIntensity", 0.4f);
                     SafeShaderDraw.Set(effect, "TrailGlows", 1f);
-                    SafeShaderDraw.Set(effect, "TrailGlowColor", new Color(255, 153, 51));
+                    SafeShaderDraw.Set(effect, "TrailGlowColor", Color.White);
                     SafeShaderDraw.Set(effect, "FireIntensity", 1.2f);
-                    SafeShaderDraw.Set(effect, "FireColor", new Color(255, 115, 13));
+                    SafeShaderDraw.Set(effect, "FireColor", Color.White);
                     SafeShaderDraw.Set(effect, "FireDecay", 0.7f);
                     SafeShaderDraw.Set(effect, "FireEmbers", 1f);
                 });
         }
 
         public override void OnHitNPC(NPC target, NPC.HitInfo hit, int damageDone)
-            => Explode();
+            => SpawnExplosionEffects();
 
         public override void OnHitPlayer(Player target, Player.HurtInfo info)
-            => Explode();
+            => SpawnExplosionEffects();
 
-        private void Explode()
+        private void SpawnExplosionEffects()
         {
             SoundEngine.PlaySound(SoundID.Item14, Projectile.Center);
 

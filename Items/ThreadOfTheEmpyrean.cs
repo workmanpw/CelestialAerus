@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Terraria;
 using Terraria.ID;
-using Terraria.Localization;
 using Terraria.ModLoader;
 using CelestialAerus.Projectiles.ThreadOfTheEmpyrean;
 
@@ -17,14 +16,6 @@ namespace CelestialAerus.Items
             ItemID.Sets.GamepadExtraRange[Item.type] = 15;
             ItemID.Sets.GamepadSmartQuickReach[Item.type] = true;
         }
-
-        public override LocalizedText DisplayName => Language.GetOrRegister("Thread Of The Empyrean");
-        public override LocalizedText Tooltip => Language.GetOrRegister(
-            "Greatness on a string\n" +
-            "Tosses an extremely hasty yo-yo\n" +
-            "Fires Celestial Fireballs that rapidly seek targets\n" +
-            "Rumor has it that this yo-yo is very dangerous"
-        );
 
         public override void SetDefaults()
         {
@@ -62,7 +53,7 @@ namespace CelestialAerus.Items
 
         public override void ModifyTooltips(List<TooltipLine> list)
         {
-            list.Add(new TooltipLine(Mod, "HealTooltip", "Heals 75 life on hit"));
+            list.Add(new TooltipLine(Mod, "HealTooltip", "Heals 175 life on hit"));
         }
     }
 }

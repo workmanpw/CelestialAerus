@@ -1,0 +1,41 @@
+BRIGITTE'S CHARM - IMPLEMENTATION STATUS
+Updated: 2026-11-16
+
+CURRENT IMPLEMENTATION
+
+- The charm builds a cached pool of eligible vanilla weapon and ammo shots.
+  It excludes hooks, spears, flails, lances, explosive projectiles, biome
+  solutions and throwables, sandgun shots, and non-weapon effects.
+- Storm shots retain their vanilla projectile type and texture but use the
+  charm's shared radial flight and homing behavior. Their vanilla AI and tile
+  collision are disabled so missing weapon AI arguments cannot stop them or
+  change terrain.
+- Storm volleys continue every 30 ticks near enemies and every 60 ticks
+  otherwise, with an active cap of 60 and a 180-tick lifetime.
+- Storm and cascade projectiles use 20-tick local NPC immunity. Shots from
+  charm-summoned minions and sentries get local immunity through their parent
+  projectile; ordinary minions keep vanilla immunity.
+- Vanilla and mod weapon minions and vanilla sentries are maintained while
+  the charm is equipped. Sentries follow the owner and retain their sentry AI.
+
+BUG FOUND AND FIXED
+
+- The latest client log showed `KeyNotFoundException` for
+  `CharmGlobalProjectile` from `SpawnMinion`, `RefreshMinionTimeLeft`,
+  `FireStormVolley`, `CountActiveStormProjectiles`, and `TryCascade`.
+- tModLoader calls `Projectile.SetDefaults(type)` inside `NewProjectile`
+  before it assigns the projectile owner or final friendly state. The global
+  projectile filter depended on those fields, so charm projectiles did not
+  receive the global instance and the charm logic failed when retrieving it.
+- The filter now selects by projectile type: charm storm/cascade/minion/sentry
+  types and vanilla minion/sentry child shots are covered before owner setup.
+
+VALIDATION
+
+- `dotnet build` succeeded with zero warnings and zero errors.
+- An isolated dedicated-server smoke test loaded CelestialAerus and reached
+  `Server started` using a temporary test world; the temporary files were
+  removed afterward.
+- Live player combat has not yet been tested after the attachment fix. Confirm
+  tModLoader reloads the rebuilt mod, then check that minions appear and the
+  storm fires in-game.

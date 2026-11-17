@@ -17,9 +17,6 @@ namespace CelestialAerus.AerusBuffs
             Main.buffNoTimeDisplay[Type] = false;
         }
 
-        public override LocalizedText DisplayName => Language.GetOrRegister("Crushed Defense");
-        public override LocalizedText Description => Language.GetOrRegister("Your defenses have been utterly shattered by cosmic power");
-
         public override void Update(NPC npc, ref int buffIndex)
         {
             // Reduce defense by 100% (no defense left)
@@ -28,7 +25,7 @@ namespace CelestialAerus.AerusBuffs
             // Visual effect - purple dust particles
             if (Main.rand.NextBool(8)) // 12.5% chance per tick
             {
-                int dustIndex = Dust.NewDust(
+                Dust dust = Dust.NewDustDirect(
                     npc.position,
                     npc.width,
                     npc.height,
@@ -39,7 +36,8 @@ namespace CelestialAerus.AerusBuffs
                     new Color(128, 0, 128), // Purple color
                     1.2f
                 );
-                Main.dust[dustIndex].noGravity = true;
+                if (dust != null)
+                    dust.noGravity = true;
             }
         }
     }

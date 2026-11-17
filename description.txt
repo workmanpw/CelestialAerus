@@ -1,1 +1,41 @@
-Modify this file with a description of your mod.
+Celestial Aerus — a celestial arsenal for the endgame and beyond.
+
+Ten weapons forged from starlight, each with its own personality, its own trails, and its own way of ruining a boss's day. If you like your Terraria overpowered, rainbow, and loud, you are home.
+
+THE WEAPONS
+
+Celestial Aerus — The namesake. A living blade with two modes: Fireball, which launches homing celestial fireballs, and Boomerang, a thrown blade that hunts enemies on its own, sticks into them, and burns them down. Press V to switch modes mid-fight.
+
+Ark of the Celestials — Calls down a full volley of homing fireballs with every single swing. No cooldown. No mercy.
+
+Celestial Tempest — A star that rains down the fury of every biome at once.
+
+Andromeda's Wrath — Beams and seekers from the far side of the galaxy.
+
+Cosmosis — Small, fast, and endlessly hungry. Crafted from the fragments of every lunar pillar.
+
+Nebula Blaze Sword — Calls down a rain of blazing bolts that converge on whatever you point at.
+
+Ancient Hatchet — A thrown hatchet that explodes into fire on impact and shatters into tiny homing hatchets that hunt and bounce between enemies. Steals life with every hit.
+
+Thread of the Empyrean — A yoyo with a rainbow trail that fires homing fireballs at your cursor and drinks life from everything it touches.
+
+Space Laser Remote — Point. Click. Something very far away stops existing.
+
+Test Weapon — For testing. You know who you are.
+
+THE BUFFS
+
+Every Celestial Aerus weapon triggers two buffs on hit:
+
+Celestial Empowerment — 20 seconds of celestial power surging through you: massively increased damage, speed, defense, and regeneration, plus a pile of further bonuses.
+
+Celestial Obliteration — Your enemies take 2000 damage every tick for 20 seconds. Nothing blocks it, nothing removes it. Not even bosses.
+
+QUALITY OF LIFE
+
+Super Tools are built in: your pickaxes, axes, hammers, drills, and chainsaws work faster, hit harder, and reach 75 tiles in every direction. No extra mod required.
+
+CREDITS
+
+Made by Daedalus. Shaders, trails, and chaos included.

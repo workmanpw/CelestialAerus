@@ -1,6 +1,6 @@
-displayName = Celestial Aerus Reworked
+displayName = Celestial Aerus
 author = Daedalus
-version = 1.4
+version = 2.0
 includeSource = true
 includeSounds = Sounds/*.mp3
 hideCode = true

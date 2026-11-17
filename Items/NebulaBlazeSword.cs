@@ -5,8 +5,6 @@ using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
 using Terraria.ModLoader;
-using Terraria.Localization;
-using CelestialAerus.AerusBuffs;
 using CelestialAerus.Projectiles;
 
 namespace CelestialAerus.Items
@@ -20,20 +18,9 @@ namespace CelestialAerus.Items
         {
         }
 
-        public override LocalizedText DisplayName =>
-            Language.GetOrRegister("Nebula Blaze");
-
-        public override LocalizedText Tooltip =>
-            Language.GetOrRegister(
-                "A stunning pink blade with a hatred for all creatures\n" +
-                "It is very volatile and dangerous\n" +
-                "Do not mistake it for candy\n" +
-                "Rains cosmic energy onto enemies"
-            );
-
         public override void SetDefaults()
         {
-            Item.damage = 30;
+            Item.damage = 250;
             Item.DamageType = DamageClass.Melee;
 
             Item.width = 40;
@@ -77,62 +64,22 @@ namespace CelestialAerus.Items
             float knockback)
         {
             // Fire NebulaBlazeBolt in the same spread pattern
-            // as the original Nebula Blaze Sword.
+            // as the original Nebula Blaze Sword: four bolts rain
+            // down from above, then three more converge on the
+            // cursor from random directions. Restored 2026-11-14
+            // at Peyton's order (the Spiral Galaxy Volley didn't
+            // feel right). Bolt damage scales with the weapon
+            // (50%) instead of the old hardcoded 15, since the
+            // sword now deals 250.
 
             float num72 = Main.rand.Next(5, 8);
 
-            Vector2 vector2 =
-                player.RotatedRelativePoint(
-                    player.MountedCenter,
-                    true
-                );
-
-            float num78 =
-                (float)Main.mouseX +
-                Main.screenPosition.X +
-                vector2.X;
-
-            float num79 =
-                (float)Main.mouseY +
-                Main.screenPosition.Y +
-                vector2.Y;
-
-            if (player.gravDir == -1f)
-            {
-                num79 =
-                    Main.screenPosition.Y +
-                    (float)Main.screenHeight +
-                    (float)Main.mouseY +
-                    vector2.Y;
-            }
-
-            float num80 =
-                (float)Math.Sqrt(
-                    (double)(
-                        num78 * num78 +
-                        num79 * num79
-                    )
-                );
-
-            float num81 = num80;
-
-            if (
-                (float.IsNaN(num78) &&
-                 float.IsNaN(num79)) ||
-                (num78 == 0f && num79 == 0f)
-            )
-            {
-                num78 = (float)player.direction;
-                num79 = 0f;
-                num80 = num72;
-            }
-            else
-            {
-                num80 = num72 / num80;
-            }
-
-            num78 *= num80;
-            num79 *= num80;
+            // vector2 / num78 / num79 / num80 are assigned fresh inside
+            // the loop before any use; the old pre-loop computation of
+            // them was dead and was removed 2026-11-14 (num81 was never
+            // read anywhere).
+            Vector2 vector2;
+            float num78, num79, num80;
 
             int num107 = 4;
 
@@ -174,6 +121,9 @@ namespace CelestialAerus.Items
                         )
                     );
 
+                // Cursor exactly on the spawn point: avoid dividing by zero.
+                if (num80 < 1f) num80 = 1f;
+
                 num80 = num72 / num80;
 
                 num78 *= num80;
@@ -197,13 +147,16 @@ namespace CelestialAerus.Items
                         speedX4,
                         speedY5,
                         ModContent.ProjectileType<NebulaBlazeBolt>(),
-                        15,
+                        (int)(damage * 0.5f),
                         knockback,
                         player.whoAmI
                     );
 
-                Main.projectile[projectileFire].timeLeft = 200;
-                Main.projectile[projectileFire].tileCollide = false;
+                if (projectileFire >= 0 && projectileFire < Main.maxProjectiles)
+                {
+                    Main.projectile[projectileFire].timeLeft = 200;
+                    Main.projectile[projectileFire].tileCollide = false;
+                }
             }
 
             // Spawn a few projectiles from random positions
@@ -247,13 +200,16 @@ namespace CelestialAerus.Items
                         spawnPos,
                         toCursor,
                         ModContent.ProjectileType<NebulaBlazeBolt>(),
-                        15,
+                        (int)(damage * 0.5f),
                         knockback,
                         player.whoAmI
                     );
 
-                Main.projectile[rainProjectile].timeLeft = 300;
-                Main.projectile[rainProjectile].tileCollide = false;
+                if (rainProjectile >= 0 && rainProjectile < Main.maxProjectiles)
+                {
+                    Main.projectile[rainProjectile].timeLeft = 300;
+                    Main.projectile[rainProjectile].tileCollide = false;
+                }
             }
 
             return false;
@@ -265,17 +221,10 @@ namespace CelestialAerus.Items
             NPC.HitInfo hit,
             int damageDone)
         {
-            // Apply CelestialFlames debuff.
-            target.AddBuff(
-                ModContent.BuffType<CelestialFlames>(),
-                300
-            );
-
-            // Apply CrushedDefense debuff.
-            target.AddBuff(
-                ModContent.BuffType<CrushedDefense>(),
-                600
-            );
+            // The tooltip promises 75 life on hit. Heal only — the
+            // mod-buff group (CelestialFlames / CrushedDefense) was
+            // removed 2026-11-14, temporarily.
+            player.Heal(75);
         }
 
         public override void AddRecipes()
