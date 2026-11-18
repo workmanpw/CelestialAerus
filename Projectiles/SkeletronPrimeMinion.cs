@@ -304,6 +304,18 @@ namespace CelestialAerus.Projectiles
             // ticks/frame; spin charge: static frame 2.
             UpdateFrame();
 
+            // FOLLOW OVERRIDE (2026-11-18): if the head is lagging
+            // behind the player, the return flight wins over the attack
+            // AI — the hover steering and the spin chase can fight the
+            // follow and strand the head (and its limbs) far from the
+            // player. Fly home this tick; the limbs still update so
+            // they travel with the head.
+            if (distToOwner > 400f)
+            {
+                UpdateLimbs(followingOwner: true);
+                return;
+            }
+
             // Re-scan for a target every 15 ticks (or if the current one died).
             retargetTimer++;
             if (retargetTimer >= 15 || target == null || !target.active || !target.CanBeChasedBy())
@@ -495,6 +507,18 @@ namespace CelestialAerus.Projectiles
             bool spinning = (int)Projectile.ai[1] == 1;
             for (int i = 0; i < LimbCount; i++)
             {
+                // HARD RESET (2026-11-18): if a limb somehow ends up
+                // stranded far from the head (past any tether range),
+                // snap it straight back to the head instead of letting
+                // it fly home for seconds. A safety net — the tether
+                // normally keeps limbs close.
+                if (Vector2.Distance(LimbCenter(i), Projectile.Center) > 800f)
+                {
+                    limbPos[i] = Projectile.Center - new Vector2(LimbHalf, LimbHalf);
+                    limbVel[i] = Vector2.Zero;
+                    limbTethered[i] = false;
+                }
+
                 Vector2 anchor = LimbAnchor(i);
                 float anchorDist = Vector2.Distance(LimbCenter(i), anchor);
 

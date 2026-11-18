@@ -308,11 +308,14 @@ namespace CelestialAerus.Projectiles
             // head 1, hands 4, core 5. Nothing rotates; only the right
             // hand is flipped (vanilla AI_078).
             //
-            // Layout is computed from the real texture sizes every frame:
-            // the core is scaled to 65% of the head's drawn width and
-            // tucked under the head (overlapping its tentacles), and the
-            // hands flank the core — so the pieces read as ONE creature
-            // instead of a head with a distant blob and floating fists.
+            // Layout is computed from the real texture sizes every frame
+            // (measured from the XNBs with xnbcli: head 573x804, hand
+            // 246x272/frame, core 60x82/frame). The core is scaled to
+            // 40% of the head's drawn width so it reads as a torso
+            // instead of a bead, the hands sit OUTSIDE the head's
+            // silhouette so they read as fists, and thick tentacle
+            // arms run from the head's lower sides down to the hands —
+            // so the pieces read as ONE creature.
             Vector2 screenCenter = Projectile.Center - Main.screenPosition;
 
             // Head texture first (its size drives the whole layout).
@@ -326,15 +329,19 @@ namespace CelestialAerus.Projectiles
             Texture2D coreTex = TextureAssets.Npc[NPCID.MoonLordCore].Value;
             int coreFrameHeight = coreTex.Height / coreFrameCount;
             Rectangle coreFrame = new Rectangle(0, 0, coreTex.Width, coreFrameHeight);
-            // Scale the core to 65% of the head's drawn width so it reads
-            // as a torso, never smaller than the minion scale and never
-            // above 0.9 (beyond that it would dwarf the head).
-            float coreScale = MathHelper.Clamp(headDrawnW * 0.65f / coreFrame.Width, Projectile.scale, 0.9f);
+            // Scale the core to 40% of the head's drawn width so it reads
+            // as a torso: at the measured sizes (head 573 px, core frame
+            // 60 px) that is ~1.9x — big enough to see, small enough to
+            // stay a chest piece and not a second head. Vanilla's core
+            // is tiny (60 px vs the 573 px head); the minion scales it
+            // up deliberately so the body is visible (Peyton, 2026-11-18:
+            // the body was not reading at all).
+            float coreScale = MathHelper.Clamp(headDrawnW * 0.40f / coreFrame.Width, 0.9f, 3f);
             float coreDrawnW = coreFrame.Width * coreScale;
             float coreDrawnH = coreFrameHeight * coreScale;
             // Tuck the core under the head: its top edge overlaps the
-            // head's bottom tentacles by 12 px.
-            Vector2 corePos = screenCenter + new Vector2(0f, headDrawnH / 2f + coreDrawnH / 2f - 12f);
+            // head's bottom tentacles by 16 px.
+            Vector2 corePos = screenCenter + new Vector2(0f, headDrawnH / 2f + coreDrawnH / 2f - 16f);
             Main.EntitySpriteDraw(coreTex, corePos, coreFrame, lightColor, 0f, coreFrame.Size() / 2f, coreScale, SpriteEffects.None, 0);
 
             // Hands (NPC_397, 4 frames): frame = counter/7 (0 open, 3 closed).
@@ -344,19 +351,25 @@ namespace CelestialAerus.Projectiles
             int handFrameHeight = handTex.Height / handFrameCount;
             Rectangle handFrame = new Rectangle(0, handFrameIndex * handFrameHeight, handTex.Width, handFrameHeight);
             float handDrawnW = handFrame.Width * Projectile.scale;
-            // Flank the core: inner edges overlap the core's sides by 8 px,
-            // vertically centered on the core.
-            float handX = coreDrawnW / 2f + handDrawnW / 2f - 8f;
+            float handDrawnH = handFrame.Height * Projectile.scale;
+            // Hands clear of the head's silhouette: inner edges just
+            // inside the head's outline, vertically centered on the core.
+            float handX = headDrawnW / 2f + handDrawnW / 2f - 12f;
             Vector2 leftHandPos = corePos + new Vector2(-handX, 0f);
             Vector2 rightHandPos = corePos + new Vector2(handX, 0f);
 
             // ARMS (Peyton, 2026-11-18 — vanilla has none, the hands just
-            // float): tentacle limbs from the core's upper sides to each
-            // hand, drawn as tapered segments along a curve bowed outward.
-            // Tan at the shoulder fading to the tentacle teal at the hand,
-            // matching the head's tentacles.
-            DrawTentacleArm(corePos + new Vector2(-coreDrawnW * 0.3f, -coreDrawnH * 0.2f), leftHandPos + new Vector2(handDrawnW * 0.3f, 0f), lightColor);
-            DrawTentacleArm(corePos + new Vector2(coreDrawnW * 0.3f, -coreDrawnH * 0.2f), rightHandPos + new Vector2(-handDrawnW * 0.3f, 0f), lightColor);
+            // float): thick tentacle limbs from the head's lower sides
+            // down to each hand, drawn as tapered segments along a curve
+            // bowed outward. Tan at the shoulder fading to the tentacle
+            // teal at the hand, matching the head's tentacles. Head-to-
+            // hand (not core-to-hand) so the arms visibly tie the whole
+            // assembly together — the short core-to-hand arms from the
+            // first attempt were too small to see.
+            Vector2 leftShoulder = screenCenter + new Vector2(-headDrawnW * 0.30f, headDrawnH * 0.30f);
+            Vector2 rightShoulder = screenCenter + new Vector2(headDrawnW * 0.30f, headDrawnH * 0.30f);
+            DrawTentacleArm(leftShoulder, leftHandPos + new Vector2(handDrawnW * 0.3f, -handDrawnH * 0.2f), lightColor);
+            DrawTentacleArm(rightShoulder, rightHandPos + new Vector2(-handDrawnW * 0.3f, -handDrawnH * 0.2f), lightColor);
 
             // Left hand unflipped, right hand flipped (vanilla AI_078:
             // spriteDirection = side, NPC drawing flips on 1).
@@ -406,8 +419,9 @@ namespace CelestialAerus.Projectiles
                     prev = point;
                     continue;
                 }
-                // Taper: 16 px at the shoulder down to 8 px at the hand.
-                float width = MathHelper.Lerp(16f, 8f, t);
+                // Taper: 24 px at the shoulder down to 12 px at the hand
+                // — thick enough to read as a limb, not a thread.
+                float width = MathHelper.Lerp(24f, 12f, t);
                 Color segmentColor = new Color(Color.Lerp(boneTan, tentacleTeal, t).ToVector4() * lightColor.ToVector4());
                 Main.EntitySpriteDraw(
                     TextureAssets.MagicPixel.Value,

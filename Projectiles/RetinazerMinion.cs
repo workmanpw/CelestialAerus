@@ -276,6 +276,18 @@ namespace CelestialAerus.Projectiles
             // the spin-down stage) it shifts +3 to frames 3→4→5.
             UpdateFrame();
 
+            // FOLLOW OVERRIDE (2026-11-18): if the minion is lagging
+            // behind the player, the return flight wins over the attack
+            // AI — the attack steering caps velocity at 7-8 px/tick and
+            // can fight the follow, stranding the minion far from the
+            // player (Peyton's playtest: Retinazer stuck at spawn).
+            // Skip the attack phases this tick and just fly home.
+            if (distToOwner > 400f)
+            {
+                EaseRotationToward(owner.Center, RotationTurnRate);
+                return;
+            }
+
             // Re-scan for a target every 15 ticks (or if the current one died).
             retargetTimer++;
             if (retargetTimer >= 15 || target == null || !target.active || !target.CanBeChasedBy())

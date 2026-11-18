@@ -6,6 +6,7 @@ using Terraria.DataStructures;
 using Terraria.ID;
 using Terraria.ModLoader;
 using CelestialAerus.AerusBuffs;
+using CelestialAerus.Configs;
 using CelestialAerus.Projectiles;
 
 namespace CelestialAerus.Players
@@ -33,7 +34,10 @@ namespace CelestialAerus.Players
 
         // Flat damage for every charm summon and storm projectile. Typeless
         // (DamageClass.Generic) so no class bonus stacks on top of it.
-        public const int CharmDamage = 6000;
+        // Config-backed (CharmConfig.CharmDamage, default 6000) — read
+        // live, so a config change applies to newly spawned minions
+        // and storm rings.
+        public static int CharmDamage => ModContent.GetInstance<CharmConfig>().CharmDamage;
 
         // Storm projectiles live at most 5 seconds (300 ticks) — long
         // enough for any of them to cross the whole combat radius, short
@@ -225,12 +229,12 @@ namespace CelestialAerus.Players
         // placers below.
         private static int[] safeStormProjectileTypes;
 
-        // The storm fires 10 projectiles a tick, so the cap has to be
-        // high enough for the rings to actually build (60 would saturate
-        // in a fraction of a second and the storm would look frozen).
-        // 200 live storm projectiles still leaves most of the 1000
-        // projectile slots for minions, the player, and enemies.
-        private const int MaxActiveStormProjectiles = 200;
+        // The storm's live-projectile cap lives in CharmConfig
+        // (StormMaxProjectiles, default 200) — high enough for the
+        // rings to actually build (60 would saturate in a fraction of
+        // a second and the storm would look frozen), low enough to
+        // leave most of the 1000 projectile slots for minions, the
+        // player, and enemies.
 
         // Storm pool: the Nov 15 static list (323 vanilla types, curated
         // from the game's own defaults), cleaned by name (31 removed:
@@ -452,12 +456,22 @@ namespace CelestialAerus.Players
             RefreshMinionTimeLeft();
             FollowSentries();
 
-            // Storm: a fresh ring of 10 every 4 ticks (see FireStormVolley).
-            // Peyton reduced the rate from every tick (2026-11-18).
-            if (++stormTimer >= 4)
+            // Storm: a fresh ring every few ticks (see FireStormVolley).
+            // Rate, size, and cap come from CharmConfig (defaults: a
+            // ring of 10 every 4 ticks, 200 max). Peyton reduced the
+            // rate from every tick (2026-11-18).
+            CharmConfig config = ModContent.GetInstance<CharmConfig>();
+            if (config.StormEnabled)
+            {
+                if (++stormTimer >= config.StormFireRate)
+                {
+                    stormTimer = 0;
+                    FireStormVolley();
+                }
+            }
+            else
             {
                 stormTimer = 0;
-                FireStormVolley();
             }
 
             if (cascadeCooldown > 0)
@@ -624,42 +638,57 @@ namespace CelestialAerus.Players
             if (Player.whoAmI != Main.myPlayer)
                 return;
 
-            foreach (int type in VanillaMinionTypes)
-            {
-                if (!MinionActive(type))
-                    SpawnMinion(type);
-            }
-            foreach (int type in VanillaSentryTypes)
-            {
-                if (!MinionActive(type))
-                    SpawnMinion(type);
-            }
-            foreach (int type in WeaponMinionTypes)
-            {
-                if (!MinionActive(type))
-                    SpawnMinion(type);
-            }
-            foreach (int type in BossMinionTypes)
-            {
-                if (!MinionActive(type))
-                    SpawnMinion(type);
-            }
+            // Each group is gated by its CharmConfig toggle (all default
+            // true — the full army spawns unless the player turns a group
+            // off). Disabled groups also stop getting their timeLeft
+            // refreshed (see RefreshMinionTimeLeft), so they despawn.
+            CharmConfig config = ModContent.GetInstance<CharmConfig>();
 
-            // True Eyes of Cthulhu come in threes (vanilla spawns one per
-            // destroyed Moon Lord part — Peyton, 2026-11-18). The boss
-            // loop above guarantees the first; top up to three here.
-            // The eyes stagger their attack cycles by index among the
-            // active eyes (see TrueEyeOfCthulhuMinion), so they don't
-            // attack in lockstep.
-            int trueEyeType = ModContent.ProjectileType<TrueEyeOfCthulhuMinion>();
-            int trueEyes = 0;
-            foreach (Projectile proj in Main.projectile)
+            if (config.VanillaMinionsEnabled)
             {
-                if (proj.active && proj.owner == Player.whoAmI && proj.type == trueEyeType)
-                    trueEyes++;
+                foreach (int type in VanillaMinionTypes)
+                {
+                    if (!MinionActive(type))
+                        SpawnMinion(type);
+                }
+                foreach (int type in VanillaSentryTypes)
+                {
+                    if (!MinionActive(type))
+                        SpawnMinion(type);
+                }
             }
-            for (; trueEyes < 3; trueEyes++)
-                SpawnMinion(trueEyeType);
+            if (config.WeaponMinionsEnabled)
+            {
+                foreach (int type in WeaponMinionTypes)
+                {
+                    if (!MinionActive(type))
+                        SpawnMinion(type);
+                }
+            }
+            if (config.BossMinionsEnabled)
+            {
+                foreach (int type in BossMinionTypes)
+                {
+                    if (!MinionActive(type))
+                        SpawnMinion(type);
+                }
+
+                // True Eyes of Cthulhu come in threes (vanilla spawns one per
+                // destroyed Moon Lord part — Peyton, 2026-11-18). The boss
+                // loop above guarantees the first; top up to three here.
+                // The eyes stagger their attack cycles by index among the
+                // active eyes (see TrueEyeOfCthulhuMinion), so they don't
+                // attack in lockstep.
+                int trueEyeType = ModContent.ProjectileType<TrueEyeOfCthulhuMinion>();
+                int trueEyes = 0;
+                foreach (Projectile proj in Main.projectile)
+                {
+                    if (proj.active && proj.owner == Player.whoAmI && proj.type == trueEyeType)
+                        trueEyes++;
+                }
+                for (; trueEyes < 3; trueEyes++)
+                    SpawnMinion(trueEyeType);
+            }
         }
 
         private bool MinionActive(int type)
@@ -702,14 +731,46 @@ namespace CelestialAerus.Players
         // Keep every charm summon alive while the charm is equipped.
         private void RefreshMinionTimeLeft()
         {
+            CharmConfig config = ModContent.GetInstance<CharmConfig>();
             foreach (Projectile proj in Main.projectile)
             {
                 if (!proj.active || proj.owner != Player.whoAmI)
                     continue;
                 if (!IsCharmMinion(proj.type))
                     continue;
+                // A disabled group's minions stop being refreshed, so
+                // they despawn within a tick or two of the toggle flip.
+                if (!IsGroupEnabled(proj.type, config))
+                    continue;
                 proj.timeLeft = proj.sentry ? Projectile.SentryLifeTime : 2;
             }
+        }
+
+        // Which CharmConfig toggle governs this minion type? Sentries
+        // count as vanilla minions (they're vanilla summons).
+        private bool IsGroupEnabled(int type, CharmConfig config)
+        {
+            foreach (int t in VanillaMinionTypes)
+            {
+                if (t == type)
+                    return config.VanillaMinionsEnabled;
+            }
+            foreach (int t in VanillaSentryTypes)
+            {
+                if (t == type)
+                    return config.VanillaMinionsEnabled;
+            }
+            foreach (int t in WeaponMinionTypes)
+            {
+                if (t == type)
+                    return config.WeaponMinionsEnabled;
+            }
+            foreach (int t in BossMinionTypes)
+            {
+                if (t == type)
+                    return config.BossMinionsEnabled;
+            }
+            return false;
         }
 
         // Sentries behave like minions and follow the player (Peyton,
@@ -722,6 +783,12 @@ namespace CelestialAerus.Players
         // (not velocity) means they glide through walls like minions.
         private void FollowSentries()
         {
+            // Sentries are vanilla minions for config purposes — if the
+            // group is off, nothing follows (the sentries despawn via
+            // RefreshMinionTimeLeft anyway).
+            if (!ModContent.GetInstance<CharmConfig>().VanillaMinionsEnabled)
+                return;
+
             int sentryCount = 0;
             foreach (Projectile proj in Main.projectile)
             {
@@ -806,12 +873,13 @@ namespace CelestialAerus.Players
             if (Player.whoAmI != Main.myPlayer)
                 return;
 
+            CharmConfig config = ModContent.GetInstance<CharmConfig>();
             int activeStormCount = CountActiveStormProjectiles();
-            int remainingCapacity = Math.Max(0, MaxActiveStormProjectiles - activeStormCount);
+            int remainingCapacity = Math.Max(0, config.StormMaxProjectiles - activeStormCount);
             if (remainingCapacity <= 0)
                 return;
 
-            int count = Math.Min(10, remainingCapacity);
+            int count = Math.Min(config.StormProjectilesPerRing, remainingCapacity);
             float ringOffset = Main.rand.NextFloat(MathHelper.TwoPi);
             for (int i = 0; i < count; i++)
             {
