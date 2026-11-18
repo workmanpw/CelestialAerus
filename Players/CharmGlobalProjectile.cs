@@ -1,8 +1,11 @@
 using System;
+using System.IO;
 using Microsoft.Xna.Framework;
 using Terraria;
+using Terraria.DataStructures;
 using Terraria.ID;
 using Terraria.ModLoader;
+using Terraria.ModLoader.IO;
 
 namespace CelestialAerus.Players
 {
@@ -21,7 +24,9 @@ namespace CelestialAerus.Players
     //
     // CASCADE HOMING: cascade projectiles mark themselves when spawned.
     // This global gently steers them toward the nearest enemy. The storm
-    // volley stays on its evenly spaced radial paths.
+    // volley stays on its evenly spaced radial paths — EXCEPT spears and
+    // flails the storm converts to flying projectiles (2026-11-18,
+    // Peyton's order): those get stormHoming and curve toward enemies.
     public class CharmGlobalProjectile : GlobalProjectile
     {
         public override bool InstancePerEntity => true;
@@ -42,8 +47,13 @@ namespace CelestialAerus.Players
             ProjectileID.AbigailCounter,          // 970 Abigail reactive counter
         };
 
-        // Set by CharmPlayer when it spawns a cascade projectile.
+        // Set by CharmPlayer when it spawns a cascade or storm projectile.
         public bool cascadeHoming;
+        public bool charmStormProjectile;
+        // Set by CharmPlayer when the storm spawns a converted spear/flail
+        // (aiStyle swapped to Arrow): the converted projectile homes
+        // gently toward the nearest enemy instead of flying blind.
+        public bool stormHoming;
 
         // Cached homing target (re-scanned every 15 AI calls).
         private int homingTarget = -1;
@@ -62,10 +72,12 @@ namespace CelestialAerus.Players
 
         public override void SetDefaults(Projectile projectile)
         {
-            // Defensive reset: the flag starts false for every projectile.
-            // Only the charm's own spawn site (cascade) ever
-            // set it true, so nothing else in the game can home.
+            // Defensive reset: the flags start false for every projectile.
+            // Only the charm's own spawn sites ever set them true, so nothing
+            // else in the game can home or be marked as a storm projectile.
             cascadeHoming = false;
+            charmStormProjectile = false;
+            stormHoming = false;
 
             // Local frames: ONLY the 9 minion-shot types, ONLY while the
             // charm is equipped. Everything else keeps vanilla rules.
@@ -86,7 +98,10 @@ namespace CelestialAerus.Players
 
         public override void AI(Projectile projectile)
         {
-            if (!cascadeHoming)
+            // Cascade projectiles home, and so do the storm's converted
+            // spears/flails. Everything else in the storm volley keeps
+            // its evenly spaced radial path.
+            if (!cascadeHoming && !stormHoming)
                 return;
 
             // Re-scan for a target every 15 AI calls, and whenever the
@@ -140,6 +155,30 @@ namespace CelestialAerus.Players
                 }
             }
             return best;
+        }
+
+        public override void SendExtraAI(Projectile projectile, BitWriter bitWriter, BinaryWriter binaryWriter)
+        {
+            binaryWriter.Write(cascadeHoming);
+            binaryWriter.Write(charmStormProjectile);
+            binaryWriter.Write(stormHoming);
+            if (cascadeHoming || stormHoming)
+            {
+                binaryWriter.Write(homingTarget);
+                binaryWriter.Write(homingScanTimer);
+            }
+        }
+
+        public override void ReceiveExtraAI(Projectile projectile, BitReader bitReader, BinaryReader binaryReader)
+        {
+            cascadeHoming = binaryReader.ReadBoolean();
+            charmStormProjectile = binaryReader.ReadBoolean();
+            stormHoming = binaryReader.ReadBoolean();
+            if (cascadeHoming || stormHoming)
+            {
+                homingTarget = binaryReader.ReadInt32();
+                homingScanTimer = binaryReader.ReadInt32();
+            }
         }
     }
 }

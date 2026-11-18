@@ -8,18 +8,19 @@ using Terraria.ModLoader;
 namespace CelestialAerus.Projectiles
 {
     /// <summary>
-    /// Test Weapon minion (Brigitte's Charm, 2026-11-15): the Test
-    /// Weapon as a living weapon. Unique attack "Test Spread": every
-    /// 60 ticks it fires a 5-bolt spread of TestBolts at the target —
-    /// a 50-degree fan at speed 16. Rapid, simple, relentless. All
+    /// Firstlight minion (Brigitte's Charm, 2026-11-15; renamed from
+    /// Test Weapon 2026-11-18): Firstlight as a living weapon. Unique
+    /// attack "Firstlight Spread": every 60 ticks it fires a 5-bolt
+    /// spread of TrialBolts at the target — a 50-degree fan at speed
+    /// 16. Rapid, simple, relentless. All
     /// damage is flat 6000, typeless (DamageClass.Generic), per the
     /// charm's design. Local immunity frames on the minion and on
     /// every projectile it spawns.
     /// </summary>
-    public class TestWeaponMinion : ModProjectile
+    public class FirstlightMinion : ModProjectile
     {
-        // Vanilla texture: the Test Weapon item uses Item_7 (Copper Shortsword).
-        public override string Texture => "Terraria/Images/Item_7";
+        // Firstlight's own texture (see Items/Firstlight.cs).
+        public override string Texture => "CelestialAerus/Textures/Firstlight";
 
         private const float TargetRange = 1000f;
         private const int MinionDamage = 6000; // flat, typeless (charm design)
@@ -71,12 +72,15 @@ namespace CelestialAerus.Projectiles
                 return;
             }
 
-            // RECALL + FAST FOLLOW: teleport back if too far; fly fast
-            // toward the player if lagging behind. NOTE: the else-if is
-            // OUTSIDE the recall if-block's closing brace (a previous
-            // script put it inside and broke the build — CS8641).
+            // RECALL + RAMPED FOLLOW (2026-11-18, Peyton's order): the
+            // minion flies back with speed that INCREASES with distance,
+            // so it catches up smoothly instead of snapping -- teleport is
+            // only the last resort when it is far off-screen (2000px).
+            // NOTE: the else-if is OUTSIDE the recall if-block's closing
+            // brace (a previous script nested it inside and broke the
+            // build -- CS8641).
             float distToOwner = Vector2.Distance(Projectile.Center, owner.Center);
-            if (distToOwner > 800f)
+            if (distToOwner > 2000f)
             {
                 Projectile.Center = owner.Center;
                 Projectile.velocity = Vector2.Zero;
@@ -86,8 +90,13 @@ namespace CelestialAerus.Projectiles
             }
             else if (distToOwner > 400f)
             {
+                // Speed ramps with distance: 20 at 400px, 40 at 800px,
+                // 60 past 1200px -- fast enough to catch a sprinting or
+                // flying player, and the lerp keeps the acceleration
+                // smooth instead of a sudden snap.
+                float followSpeed = MathHelper.Clamp(distToOwner * 0.05f, 16f, 60f);
                 Vector2 toOwner = (owner.Center - Projectile.Center).SafeNormalize(Vector2.Zero);
-                Projectile.velocity = Vector2.Lerp(Projectile.velocity, toOwner * 20f, 0.2f);
+                Projectile.velocity = Vector2.Lerp(Projectile.velocity, toOwner * followSpeed, 0.2f);
             }
 
             // Re-scan for a target every 15 ticks (or if the current one died).
@@ -110,7 +119,7 @@ namespace CelestialAerus.Projectiles
             Projectile.rotation = (target.Center - Projectile.Center).ToRotation();
             SteerToward(target.Center + new Vector2(0f, -180f), 10f, 0.12f);
 
-            // Test Spread: a 5-bolt, 50-degree fan every 60 ticks.
+            // Firstlight Spread: a 5-bolt, 50-degree fan every 60 ticks.
             attackTimer++;
             if (attackTimer >= SpreadInterval)
             {
@@ -123,7 +132,7 @@ namespace CelestialAerus.Projectiles
                     for (int i = 0; i < BoltCount; i++)
                     {
                         float angle = -spreadRad / 2f + step * i;
-                        SpawnFriendlyProjectile(ModContent.ProjectileType<TestBolt>(), Projectile.Center, dir.RotatedBy(angle) * BoltSpeed);
+                        SpawnFriendlyProjectile(ModContent.ProjectileType<TrialBolt>(), Projectile.Center, dir.RotatedBy(angle) * BoltSpeed);
                     }
                 }
             }
@@ -148,22 +157,22 @@ namespace CelestialAerus.Projectiles
             switch (index)
             {
                 case 0:
-                    TestSpiral();
+                    FirstlightSpiral();
                     break;
                 case 1:
-                    TestRain();
+                    FirstlightRain();
                     break;
                 default:
-                    TestRing();
+                    FirstlightRing();
                     break;
             }
         }
 
-        // (a) Test Spiral: 10 TestBolts in a spiral — evenly spaced
+        // (a) Test Spiral: 10 TrialBolts in a spiral — evenly spaced
         // angles, speeds rising from 12 to 18.
-        private void TestSpiral()
+        private void FirstlightSpiral()
         {
-            int boltType = ModContent.ProjectileType<TestBolt>();
+            int boltType = ModContent.ProjectileType<TrialBolt>();
             float baseAngle = (target.Center - Projectile.Center).ToRotation();
             for (int i = 0; i < 10; i++)
             {
@@ -174,14 +183,14 @@ namespace CelestialAerus.Projectiles
             }
         }
 
-        // (b) Test Rain: 8 TestBolts rain from 600px above the nearest
+        // (b) Test Rain: 8 TrialBolts rain from 600px above the nearest
         // 8 enemies (round-robin if fewer than 8 targets).
-        private void TestRain()
+        private void FirstlightRain()
         {
             List<NPC> targets = FindTargets(8, TargetRange);
             if (targets.Count == 0)
                 return;
-            int boltType = ModContent.ProjectileType<TestBolt>();
+            int boltType = ModContent.ProjectileType<TrialBolt>();
             for (int i = 0; i < 8; i++)
             {
                 NPC t = targets[i % targets.Count];
@@ -191,11 +200,11 @@ namespace CelestialAerus.Projectiles
             }
         }
 
-        // (c) Test Ring: 12 TestBolts in a 360-degree ring around the
+        // (c) Test Ring: 12 TrialBolts in a 360-degree ring around the
         // minion, speed 14.
-        private void TestRing()
+        private void FirstlightRing()
         {
-            int boltType = ModContent.ProjectileType<TestBolt>();
+            int boltType = ModContent.ProjectileType<TrialBolt>();
             for (int i = 0; i < 12; i++)
             {
                 float angle = i * (MathHelper.TwoPi / 12f);

@@ -10,7 +10,7 @@ using CelestialAerus.Effects;
 
 namespace CelestialAerus.Projectiles
 {
-    public class TestBolt : ModProjectile
+    public class TrialBolt : ModProjectile
     {
         // Keep the vanilla Rainbow Rod bolt sprite.
         public override string Texture => "Terraria/Images/Projectile_" + ProjectileID.RainbowRodBullet;

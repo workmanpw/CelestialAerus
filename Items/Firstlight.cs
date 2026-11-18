@@ -8,38 +8,39 @@ using CelestialAerus.Projectiles;
 
 namespace CelestialAerus.Items
 {
-    public class TestWeapon : ModItem
+    public class Firstlight : ModItem
     {
-        // Reuse the vanilla copper shortsword sprite.
-        public override string Texture => "Terraria/Images/Item_" + ItemID.CopperShortsword;
+        // Firstlight's own texture: a cyan trial-blade with magenta
+        // energy (Textures/Firstlight.png). No more vanilla placeholder.
+        public override string Texture => "CelestialAerus/Textures/Firstlight";
 
         public override void SetStaticDefaults() { }
 
         public override void SetDefaults()
         {
-            Item.width = 32;
-            Item.height = 32;
+            Item.width = 120;
+            Item.height = 120;
             Item.damage = 200; // each projectile deals 25% of this = 50
             Item.DamageType = DamageClass.Melee;
-            Item.useAnimation = 20;
-            Item.useTime = 20;
+            Item.useAnimation = 16;
+            Item.useTime = 16;
             Item.useTurn = true;
             Item.useStyle = ItemUseStyleID.Swing; // swing like a broadsword
             Item.knockBack = 6f;
             Item.UseSound = SoundID.Item1; // basic swing sound; no sound on shoot
             Item.autoReuse = true;
-            Item.rare = ItemRarityID.Blue;
-            Item.value = 10000;
-            Item.shoot = ModContent.ProjectileType<TestBolt>();
+            Item.rare = ItemRarityID.Purple;
+            Item.value = Item.sellPrice(0, 30);
+            Item.shoot = ModContent.ProjectileType<TrialBolt>();
             Item.shootSpeed = 16f;
         }
 
         public override bool Shoot(Player player, EntitySource_ItemUse_WithAmmo source, Vector2 position, Vector2 velocity, int type, int damage, float knockback)
         {
             // Firing pattern matches the Cosmosis: one main bolt plus a spread
-            // of seekers. Only the TestBolt is used here, at 25% weapon damage
+            // of seekers. Only the TrialBolt is used here, at 25% weapon damage
             // each, with none of the Cosmosis's extra effects.
-            type = ModContent.ProjectileType<TestBolt>();
+            type = ModContent.ProjectileType<TrialBolt>();
             int projDamage = (int)(damage * 0.25f);
 
             // Main bolt, fired along the swing.
@@ -89,9 +90,16 @@ namespace CelestialAerus.Items
 
         public override void AddRecipes()
         {
-            // One dirt, no crafting station required.
+            // A real weapon gets a real recipe: the pinnacle of mortal
+            // blades (Terra Blade) proven worthy of starlight, at the
+            // Lunar Crafting Station. Mid-tier cost for a mid-tier blade.
             CreateRecipe()
-                .AddIngredient(ItemID.DirtBlock, 1)
+                .AddIngredient(ItemID.TerraBlade)
+                .AddIngredient(ItemID.FragmentSolar, 15)
+                .AddIngredient(ItemID.FragmentVortex, 15)
+                .AddIngredient(ItemID.FragmentNebula, 15)
+                .AddIngredient(ItemID.FragmentStardust, 15)
+                .AddTile(TileID.LunarCraftingStation)
                 .Register();
         }
     }

@@ -93,12 +93,15 @@ namespace CelestialAerus.Projectiles
                 return;
             }
 
-            // RECALL + FAST FOLLOW: teleport back if too far; fly fast
-            // toward the player if lagging behind. NOTE: the else-if is
-            // OUTSIDE the recall if-block's closing brace (a previous
-            // script nested it inside and broke the build — CS8641).
+            // RECALL + RAMPED FOLLOW (2026-11-18, Peyton's order): the
+            // minion flies back with speed that INCREASES with distance,
+            // so it catches up smoothly instead of snapping -- teleport is
+            // only the last resort when it is far off-screen (2000px).
+            // NOTE: the else-if is OUTSIDE the recall if-block's closing
+            // brace (a previous script nested it inside and broke the
+            // build -- CS8641).
             float distToOwner = Vector2.Distance(Projectile.Center, owner.Center);
-            if (distToOwner > 800f)
+            if (distToOwner > 2000f)
             {
                 Projectile.Center = owner.Center;
                 Projectile.velocity = Vector2.Zero;
@@ -108,8 +111,13 @@ namespace CelestialAerus.Projectiles
             }
             else if (distToOwner > 400f)
             {
+                // Speed ramps with distance: 20 at 400px, 40 at 800px,
+                // 60 past 1200px -- fast enough to catch a sprinting or
+                // flying player, and the lerp keeps the acceleration
+                // smooth instead of a sudden snap.
+                float followSpeed = MathHelper.Clamp(distToOwner * 0.05f, 16f, 60f);
                 Vector2 toOwner = (owner.Center - Projectile.Center).SafeNormalize(Vector2.Zero);
-                Projectile.velocity = Vector2.Lerp(Projectile.velocity, toOwner * 20f, 0.2f);
+                Projectile.velocity = Vector2.Lerp(Projectile.velocity, toOwner * followSpeed, 0.2f);
             }
 
             // Re-scan for a target every 15 ticks (or if the current one died).

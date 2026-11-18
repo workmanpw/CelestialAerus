@@ -38,7 +38,7 @@ Items: {
 			A charm blessed by the Goddess herself
 			Grants the power of every accessory
 			+600 defense, rapid healing and mana regeneration
-			Summons an army of minions and bosses to fight for you
+			Summons an army of minions, living weapons, and bosses to fight for you
 			Calls down a storm of projectiles upon your enemies
 			'''
 	}
@@ -101,11 +101,12 @@ Items: {
 			'''
 	}
 
-	TestWeapon: {
-		DisplayName: Test Weapon
+	Firstlight: {
+		DisplayName: Firstlight
 		Tooltip:
 			'''
-			Experimental test weapon
+			The first blade the Aerus smiths ever forged, and the first light of their craft
+			Built as a trial weapon to prove mortal steel could hold starlight -- it passed, and every Aerus weapon since is measured against it
 			Fires homing rainbow bolts that pass through tiles
 			'''
 	}
@@ -135,8 +136,36 @@ Projectiles: {
 	CosmosisMinion.DisplayName: Cosmosis
 	NebulaBlazeSwordMinion.DisplayName: Nebula Blaze Sword
 	SpaceLaserRemoteMinion.DisplayName: Space Laser Remote
-	TestWeaponMinion.DisplayName: Test Weapon
+	FirstlightMinion.DisplayName: Firstlight
 	ThreadOfTheEmpyreanMinion.DisplayName: Thread of the Empyrean
+	BetsyMinion.DisplayName: Betsy
+	DarkMageMinion.DisplayName: Dark Mage
+	DestroyerMinion.DisplayName: The Destroyer
+	DukeFishronMinion.DisplayName: Duke Fishron
+	EmpressOfLightMinion.DisplayName: Empress of Light
+	EverscreamMinion.DisplayName: Everscream
+	EyeOfCthulhuMinion.DisplayName: Eye of Cthulhu
+	GolemMinion.DisplayName: Golem
+	IceQueenMinion.DisplayName: Ice Queen
+	KingSlimeMinion.DisplayName: King Slime
+	MartianSaucerMinion.DisplayName: Martian Saucer
+	MoonLordMinion.DisplayName: Moon Lord
+	MourningWoodMinion.DisplayName: Mourning Wood
+	OgreMinion.DisplayName: Ogre
+	PlanteraMinion.DisplayName: Plantera
+	PumpkingMinion.DisplayName: Pumpking
+	RetinazerMinion.DisplayName: Retinazer
+	SantaNK1Minion.DisplayName: Santa-NK1
+	SkeletronMinion.DisplayName: Skeletron
+	SkeletronPrimeMinion.DisplayName: Skeletron Prime
+	SpazmatismMinion.DisplayName: Spazmatism
+	TrueEyeOfCthulhuMinion.DisplayName: True Eye of Cthulhu
+	DestroyerProbeMinion.DisplayName: Destroyer Probe
+	PrimeBombFriendly.DisplayName: Prime Bomb
+	BetsyFlameBreathFriendly.DisplayName: Betsy Flame Breath
+	SaucerDeathrayFriendly.DisplayName: Saucer Deathray
+	SaucerMissileFriendly.DisplayName: Saucer Missile
+	PumpkingBladeMinion.DisplayName: Pumpking Blade
 	CosmoBeam.DisplayName: Cosmo Beam
 	CosmoSeeker.DisplayName: Cosmo Seeker
 	NebulaBlazeBolt.DisplayName: Nebula Blaze Bolt
@@ -144,7 +173,7 @@ Projectiles: {
 	SpaceLaserBeam.DisplayName: Space Laser Beam
 	TempestBeam.DisplayName: Tempest Beam
 	TempestStar.DisplayName: Tempest Star
-	TestBolt.DisplayName: Test Bolt
+	TrialBolt.DisplayName: Trial Bolt
 	ThreadOfTheEmpyreanProjectile.DisplayName: Empyrean Yo-Yo
 	ThrownCelestialAerus.DisplayName: Celestial Aerus
 	TinyHatchet.DisplayName: Tiny Hatchet

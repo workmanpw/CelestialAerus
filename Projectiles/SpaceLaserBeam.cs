@@ -127,8 +127,12 @@ public class SpaceLaserBeam : ModProjectile
             || !beamRect.Intersects(localPlayer.Hitbox))
             return;
 
+        // ByProjectile takes a projectile INDEX (into Main.projectile),
+        // not a type — passing Projectile.type (a modded type ID in the
+        // thousands) indexed out of range and threw every hit (client.log
+        // 2026-11-18 02:24:38). whoAmI is the index.
         PlayerDeathReason deathReason =
-            PlayerDeathReason.ByProjectile(Projectile.owner, Projectile.type);
+            PlayerDeathReason.ByProjectile(Projectile.owner, Projectile.whoAmI);
 
         if (localPlayer.whoAmI == Projectile.owner)
         {

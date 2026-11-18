@@ -19,13 +19,14 @@ namespace CelestialAerus.Players
     //  - +600 defense lives on the item itself (Item.defense).
     //  - 600 HP/s and 600 mana/s: +10/tick direct, clamped — NOT Heal(), which
     //    would spam heal effects 60 times a second.
-    //  - One of every vanilla minion (29 types — the Dead Cells minion is
-    //    1.4.5-only and doesn't exist in tML 1.4.4) + one of every boss
-    //    minion (12 types), all at flat 6,000 typeless damage with local
-    //    immunity frames (20 ticks) so every ally damages the same enemy
-    //    independently.
-    //  - The old Soul of Eternity storm: a passive barrage every second, plus
-    //    an on-hit cascade.
+    //  - One of every vanilla minion and sentry, plus the mod's weapon
+    //    minions, at flat 6,000 typeless damage. Sentries follow the
+    //    player like minions instead of sitting on the floor.
+    //  - A continuous radial projectile storm: a fresh ring of 10
+    //    randomly picked projectiles every tick (every vanilla
+    //    projectile that can fly and hurt enemies, minus hooks,
+    //    destructive explosives, and player-held styles; spears/flails
+    //    are converted to flying projectiles), plus an on-hit cascade.
     public class CharmPlayer : ModPlayer
     {
         public bool charmEquipped;
@@ -34,12 +35,19 @@ namespace CelestialAerus.Players
         // (DamageClass.Generic) so no class bonus stacks on top of it.
         public const int CharmDamage = 6000;
 
+        // Storm projectiles live at most 5 seconds (300 ticks) — long
+        // enough for any of them to cross the whole combat radius, short
+        // enough that long-lived drifters (clouds, boomerangs) recycle
+        // their slots. The 60-active cap is the real performance guard.
+        private const int StormProjectileLifetime = 300;
+
         // Local immunity frames per ally/projectile: 20 ticks = 3 hits/s each.
         public const int CharmLocalCooldown = 20;
 
-        private int stormTimer;
         private int minionTimer;
         private int cascadeCooldown;
+        private int stormTimer;
+        private bool charmWasEquipped;
 
         // Dummy items for the accessory effects that 1.4.4 tracks as Item
         // references (the game checks them for null/IsAir, not for being
@@ -48,11 +56,10 @@ namespace CelestialAerus.Players
         private Item honeyCombDummy;
         private Item brainDummy;
 
-        // Every vanilla minion type, verified against the decompiled source
-        // (2026-11-15). Stardust Dragon: HEAD ONLY (625) — it grows its own
-        // segments. Desert Tiger: base tier only (831) — it evolves itself.
-        // Sentries are NOT in v1 (stationary, separate category).
-        private static readonly int[] VanillaMinionTypes = new int[]
+        // Known vanilla minions that are not marked as standard slot-based
+        // minions, plus the dynamically discovered standard minions/sentries.
+        // Stardust Dragon and Desert Tiger use only their base summon types.
+        private static readonly int[] KnownVanillaMinionTypes = new int[]
         {
             ProjectileID.BabySlime,          // 266 Slime Staff
             ProjectileID.Hornet,             // 373 Hornet Staff (NOT BabyHornet 198 — unused)
@@ -83,14 +90,68 @@ namespace CelestialAerus.Players
             ProjectileID.BabyBird,           // 759 Birdie Rattle
             ProjectileID.StardustGuardian,   // 623 Stardust armor set bonus
             ProjectileID.Smolstar,           // 864 Smolstar (item 4758)
-            // NOTE: DeadCellsMushroomBoiMinion (1022) is NOT in tML 1.4.4's
-            // ProjectileID — the Dead Cells crossover minion is 1.4.5-only.
-            // 29 vanilla minions, not 30. Do not re-add it.
         };
 
-        // Boss minions (ModProjectiles in this mod). All 12.
-        // Aerus weapon minions (2026-11-15, Peyton's redesign: the charm
-        // summons the mod's own weapons as living minions instead of bosses).
+        private static int[] vanillaMinionTypes;
+        private static int[] vanillaSentryTypes;
+
+        private static int[] VanillaMinionTypes
+        {
+            get
+            {
+                EnsureVanillaSummonTypes();
+                return vanillaMinionTypes;
+            }
+        }
+
+        private static int[] VanillaSentryTypes
+        {
+            get
+            {
+                EnsureVanillaSummonTypes();
+                return vanillaSentryTypes;
+            }
+        }
+
+        private static void EnsureVanillaSummonTypes()
+        {
+            if (vanillaMinionTypes != null)
+                return;
+
+            HashSet<int> minions = new HashSet<int>(KnownVanillaMinionTypes);
+            List<int> sentries = new List<int>();
+            Projectile probe = new Projectile();
+            for (int type = 1; type < ProjectileID.Count; type++)
+            {
+                try
+                {
+                    probe.SetDefaults(type);
+
+                    if (probe.friendly &&
+                        probe.minion &&
+                        type < ProjectileID.Sets.MinionSacrificable.Length &&
+                        ProjectileID.Sets.MinionSacrificable[type])
+                    {
+                        minions.Add(type);
+                    }
+
+                    if (probe.friendly && probe.sentry)
+                        sentries.Add(type);
+                }
+                catch (Exception)
+                {
+                    // Skip projectile types that fail to initialize
+                    continue;
+                }
+            }
+
+            vanillaMinionTypes = new int[minions.Count];
+            minions.CopyTo(vanillaMinionTypes);
+            Array.Sort(vanillaMinionTypes);
+            vanillaSentryTypes = sentries.ToArray();
+        }
+
+        // The charm's own weapon minions remain a separate, unchanged list.
         private static readonly int[] WeaponMinionTypes = new int[]
         {
             ModContent.ProjectileType<AncientHatchetMinion>(),
@@ -101,355 +162,237 @@ namespace CelestialAerus.Players
             ModContent.ProjectileType<CosmosisMinion>(),
             ModContent.ProjectileType<NebulaBlazeSwordMinion>(),
             ModContent.ProjectileType<SpaceLaserRemoteMinion>(),
-            ModContent.ProjectileType<TestWeaponMinion>(),
+            ModContent.ProjectileType<FirstlightMinion>(),
             ModContent.ProjectileType<ThreadOfTheEmpyreanMinion>(),
         };
 
-        // The storm pool: ~34 iconic vanilla projectiles, all verified IDs
-        // (2026-11-15).
-        // Storm pool (2026-11-15, Peyton's rule): EVERY vanilla player
-        // projectile that can deal damage to enemies — 340 types, verified
-        // against the decompiled ProjectileID enum. Minions and sentries
-        // themselves are NEVER spawned; their SHOT projectiles are in the
-        // pool instead. Tile-destroying explosives (26 types) are excluded
-        // by Peyton's rule — nothing in the storm may destroy tiles.
-        // Liquid explosives (wet/lava/honey/dry) are also excluded —
-        // Peyton considers them destructive.
-        // One exclusion from the old pool: RainbowCrystal
-        // (643) is a sentry, replaced by its shot RainbowCrystalExplosion.
-        private static readonly int[] StormPool = new int[]
+        // The charm's boss minions (2026-11-18): the 21 vanilla bosses as
+        // living minions, restored with sprites, animations, and attacks
+        // fixed against the decompiled vanilla code. Their helper
+        // projectiles (Destroyer probes, Prime bombs, Betsy breath, saucer
+        // deathrays/missiles, Pumpking blades) are spawned by their
+        // parents — NOT listed here.
+        private static readonly int[] BossMinionTypes = new int[]
         {
-            // Melee (85)
-            ProjectileID.EnchantedBoomerang, // 6
-            ProjectileID.Starfury, // 9
-            ProjectileID.Flamarang, // 19
-            ProjectileID.ThornChakram, // 33
-            ProjectileID.WoodenBoomerang, // 52
-            ProjectileID.LightDisc, // 106
-            ProjectileID.IceBoomerang, // 113
-            ProjectileID.SwordBeam, // 116
-            ProjectileID.IceBolt, // 118
-            ProjectileID.FrostBoltSword, // 119
-            ProjectileID.Mushroom, // 131
-            ProjectileID.TerraBeam, // 132
-            ProjectileID.LightBeam, // 156
-            ProjectileID.NightBeam, // 157
-            ProjectileID.EnchantedBeam, // 173
-            ProjectileID.PossessedHatchet, // 182
-            ProjectileID.SporeCloud, // 228
-            ProjectileID.ChlorophyteOrb, // 229
-            ProjectileID.FlowerPowPetal, // 248
-            ProjectileID.IceSickle, // 263
-            ProjectileID.Bananarang, // 272
-            ProjectileID.DeathSickle, // 274
-            ProjectileID.PaladinsHammerFriendly, // 301
-            ProjectileID.VampireKnife, // 304
-            ProjectileID.EatersBite, // 306
-            ProjectileID.BloodyMachete, // 320
-            ProjectileID.FlamingJack, // 321
-            ProjectileID.FruitcakeChakram, // 333
-            ProjectileID.OrnamentFriendly, // 335
-            ProjectileID.NorthPoleSpear, // 343
-            ProjectileID.NorthPoleSnowflake, // 344
-            ProjectileID.FlaironBubble, // 405
-            ProjectileID.InfluxWaver, // 451
-            ProjectileID.SeedlerNut, // 483
-            ProjectileID.SeedlerThorn, // 484
-            ProjectileID.FlyingKnife, // 491
-            ProjectileID.ShadowFlameKnife, // 497
-            ProjectileID.Meowmere, // 502
-            ProjectileID.StarWrath, // 503
-            ProjectileID.Spark, // 504
-            ProjectileID.IchorSplash, // 524
-            ProjectileID.TerrarianBeam, // 604
-            ProjectileID.SolarFlareRay, // 607
-            ProjectileID.Daybreak, // 636
-            ProjectileID.Ale, // 669
-            ProjectileID.DD2SquireSonicBoom, // 684
-            ProjectileID.MonkStaffT1Explosion, // 698
-            ProjectileID.MonkStaffT2Ghast, // 700
-            ProjectileID.MonkStaffT3_AltShot, // 709
-            ProjectileID.ThunderSpearShot, // 732
-            ProjectileID.FirstFractal, // 857
-            ProjectileID.BouncingShield, // 866
-            ProjectileID.Shroomerang, // 867
-            ProjectileID.CombatWrench, // 902
-            ProjectileID.OrnamentStar, // 907
-            ProjectileID.DripplerFlailExtraBall, // 928
-            ProjectileID.FinalFractal, // 933
-            ProjectileID.TentacleSpike, // 971
-            ProjectileID.NightsEdge, // 972
-            ProjectileID.TrueNightsEdge, // 973
-            ProjectileID.LightsBane, // 974
-            ProjectileID.BloodButcherer, // 975
-            ProjectileID.Volcano, // 978
-            ProjectileID.Excalibur, // 982
-            ProjectileID.TrueExcalibur, // 983
-            ProjectileID.TerraBlade2, // 984
-            ProjectileID.TerraBlade2Shot, // 985
-            ProjectileID.TheHorsemansBlade, // 997
-            ProjectileID.Trimarang, // 1000
-            ProjectileID.Waffle, // 1012
-            // Ranged (148)
-            ProjectileID.ClusterGrenadeI, // 777
-            ProjectileID.MiniNukeGrenadeI, // 794
-            ProjectileID.WoodenArrowFriendly, // 1
-            ProjectileID.FireArrow, // 2
-            ProjectileID.Shuriken, // 3
-            ProjectileID.UnholyArrow, // 4
-            ProjectileID.JestersArrow, // 5
-            ProjectileID.Bullet, // 14
-            ProjectileID.Bone, // 21
-            ProjectileID.SpikyBall, // 24
-            ProjectileID.Grenade, // 30
-            ProjectileID.MeteorShot, // 36
-            ProjectileID.HellfireArrow, // 41
-            ProjectileID.SandBallGun, // 42
-            ProjectileID.ThrowingKnife, // 48
-            ProjectileID.Seed, // 51
-            ProjectileID.PoisonedKnife, // 54
-            ProjectileID.EbonsandBallGun, // 65
-            ProjectileID.PearlSandBallGun, // 68
-            ProjectileID.Flames, // 85
-            ProjectileID.CrystalBullet, // 89
-            ProjectileID.CrystalShard, // 90
-            ProjectileID.HolyArrow, // 91
-            ProjectileID.HallowStar, // 92
-            ProjectileID.CursedArrow, // 103
-            ProjectileID.CursedBullet, // 104
-            ProjectileID.BoneArrow, // 117
-            ProjectileID.FrostArrow, // 120
-            ProjectileID.GrenadeI, // 133
-            ProjectileID.RocketI, // 134
-            ProjectileID.ProximityMineI, // 135
-            ProjectileID.GrenadeIII, // 139
-            ProjectileID.RocketIII, // 140
-            ProjectileID.ProximityMineIII, // 141
-            ProjectileID.CopperCoin, // 158
-            ProjectileID.SilverCoin, // 159
-            ProjectileID.GoldCoin, // 160
-            ProjectileID.PlatinumCoin, // 161
-            ProjectileID.SnowBallFriendly, // 166
-            ProjectileID.FrostburnArrow, // 172
-            ProjectileID.Beenade, // 183
-            ProjectileID.ChlorophyteBullet, // 207
-            ProjectileID.ChlorophyteArrow, // 225
-            ProjectileID.BulletHighVelocity, // 242
-            ProjectileID.Stynger, // 246
-            ProjectileID.StyngerShrapnel, // 249
-            ProjectileID.PoisonDartBlowgun, // 267
-            ProjectileID.IchorArrow, // 278
-            ProjectileID.IchorBullet, // 279
-            ProjectileID.VenomArrow, // 282
-            ProjectileID.VenomBullet, // 283
-            ProjectileID.PartyBullet, // 284
-            ProjectileID.NanoBullet, // 285
-            ProjectileID.ExplosiveBullet, // 286
-            ProjectileID.GoldenBullet, // 287
-            ProjectileID.CandyCorn, // 311
-            ProjectileID.JackOLantern, // 312
-            ProjectileID.RottenEgg, // 318
-            ProjectileID.Stake, // 323
-            ProjectileID.StarAnise, // 330
-            ProjectileID.RocketSnowmanI, // 338
-            ProjectileID.RocketSnowmanIII, // 340
-            ProjectileID.CrimsandBallGun, // 354
-            ProjectileID.PulseBolt, // 357
-            ProjectileID.StickyGrenade, // 397
-            ProjectileID.MolotovCocktail, // 399
-            ProjectileID.ElectrosphereMissile, // 442
-            ProjectileID.Electrosphere, // 443
-            ProjectileID.Xenopopper, // 444
-            ProjectileID.BeeArrow, // 469
-            ProjectileID.BoneArrowFromMerchant, // 474
-            ProjectileID.CrystalDart, // 477
-            ProjectileID.CursedDart, // 478
-            ProjectileID.IchorDart, // 479
-            ProjectileID.CursedDartFlame, // 480
-            ProjectileID.Hellwing, // 485
-            ProjectileID.ShadowFlameArrow, // 495
-            ProjectileID.JavelinFriendly, // 507
-            ProjectileID.NailFriendly, // 514
-            ProjectileID.BouncyGrenade, // 517
-            ProjectileID.FrostDaggerfish, // 520
-            ProjectileID.ToxicBubble, // 523
-            ProjectileID.BoneGloveProj, // 532
-            ProjectileID.ClothiersCurse, // 585
-            ProjectileID.PainterPaintball, // 587
-            ProjectileID.PartyGirlGrenade, // 588
-            ProjectileID.BoneJavelin, // 598
-            ProjectileID.BoneDagger, // 599
-            ProjectileID.ScutlixLaser, // 606
-            ProjectileID.VortexBeaterRocket, // 616
-            ProjectileID.PhantasmArrow, // 631
-            ProjectileID.MoonlordBullet, // 638
-            ProjectileID.MoonlordArrow, // 639
-            ProjectileID.MoonlordArrowTrail, // 640
-            ProjectileID.BlackBolt, // 661
-            ProjectileID.DD2PhoenixBowShot, // 706
-            ProjectileID.DD2BetsyArrow, // 710
-            ProjectileID.Celeb2Rocket, // 715
-            ProjectileID.Celeb2RocketLarge, // 717
-            ProjectileID.SuperStar, // 728
-            ProjectileID.SuperStarSlash, // 729
-            ProjectileID.Geode, // 772
-            ProjectileID.ClusterRocketI, // 776
-            ProjectileID.ClusterMineI, // 778
-            ProjectileID.ClusterFragmentsI, // 779
-            ProjectileID.MiniNukeRocketI, // 793
-            ProjectileID.MiniNukeMineI, // 795
-            ProjectileID.ClusterSnowmanRocketI, // 803
-            ProjectileID.MiniNukeSnowmanRocketI, // 808
-            ProjectileID.BloodArrow, // 819
-            ProjectileID.ClusterSnowmanFragmentsI, // 862
-            ProjectileID.SantankMountRocket, // 930
-            ProjectileID.FairyQueenRangedItemShot, // 932
-            ProjectileID.VolatileGelatinBall, // 937
-            ProjectileID.StarCannonStar, // 955
-            ProjectileID.PewMaticHornShot, // 968
-            ProjectileID.SilverBullet, // 981
-            ProjectileID.ShimmerArrow, // 1006
-            // Magic (98)
-            ProjectileID.VilethornBase, // 7
-            ProjectileID.VilethornTip, // 8
-            ProjectileID.BallofFire, // 15
-            ProjectileID.MagicMissile, // 16
-            ProjectileID.GreenLaser, // 20
-            ProjectileID.WaterStream, // 22
-            ProjectileID.WaterBolt, // 27
-            ProjectileID.Flamelash, // 34
-            ProjectileID.DemonScythe, // 45
-            ProjectileID.RainbowRodBullet, // 79
-            ProjectileID.PurpleLaser, // 88
-            ProjectileID.MagicDagger, // 93
-            ProjectileID.CrystalStorm, // 94
-            ProjectileID.CursedFlameFriendly, // 95
-            ProjectileID.UnholyTridentFriendly, // 114
-            ProjectileID.AmethystBolt, // 121
-            ProjectileID.TopazBolt, // 122
-            ProjectileID.SapphireBolt, // 123
-            ProjectileID.EmeraldBolt, // 124
-            ProjectileID.RubyBolt, // 125
-            ProjectileID.DiamondBolt, // 126
-            ProjectileID.NettleBurstRight, // 150
-            ProjectileID.NettleBurstLeft, // 151
-            ProjectileID.NettleBurstEnd, // 152
-            ProjectileID.Wasp, // 189
-            ProjectileID.Leaf, // 206
-            ProjectileID.RainFriendly, // 239
-            ProjectileID.BloodRain, // 245
-            ProjectileID.BallofFrost, // 253
-            ProjectileID.MagnetSphereBolt, // 255
-            ProjectileID.HeatRay, // 260
-            ProjectileID.BoulderStaffOfEarth, // 261
-            ProjectileID.PoisonFang, // 265
-            ProjectileID.GoldenShowerFriendly, // 280
-            ProjectileID.ShadowBeamFriendly, // 294
-            ProjectileID.InfernoFriendlyBolt, // 295
-            ProjectileID.InfernoFriendlyBlast, // 296
-            ProjectileID.LostSoulFriendly, // 297
-            ProjectileID.Bat, // 316
-            ProjectileID.PineNeedleFriendly, // 336
-            ProjectileID.Blizzard, // 337
-            ProjectileID.VenomFang, // 355
-            ProjectileID.SpectreWrath, // 356
-            ProjectileID.FrostBoltStaff, // 359
-            ProjectileID.Typhoon, // 409
-            ProjectileID.Bubble, // 410
-            ProjectileID.Meteor1, // 424
-            ProjectileID.Meteor2, // 425
-            ProjectileID.Meteor3, // 426
-            ProjectileID.LaserMachinegunLaser, // 440
-            ProjectileID.ChargedBlasterOrb, // 459
-            ProjectileID.SoulDrain, // 476
-            ProjectileID.CrystalVileShardHead, // 493
-            ProjectileID.CrystalVileShardShaft, // 494
-            ProjectileID.ShadowFlame, // 496
-            ProjectileID.ToxicFlask, // 510
-            ProjectileID.ToxicCloud, // 511
-            ProjectileID.ToxicCloud2, // 512
-            ProjectileID.ToxicCloud3, // 513
-            ProjectileID.CrystalPulse, // 521
-            ProjectileID.CrystalPulse2, // 522
-            ProjectileID.MedusaHeadRay, // 536
-            ProjectileID.SporeGas, // 569
-            ProjectileID.SporeGas2, // 570
-            ProjectileID.SporeGas3, // 571
-            ProjectileID.MinecartMechLaser, // 591
-            ProjectileID.AmberBolt, // 597
-            ProjectileID.NebulaArcanum, // 617
-            ProjectileID.NebulaArcanumSubshot, // 618
-            ProjectileID.NebulaArcanumExplosionShot, // 619
-            ProjectileID.NebulaArcanumExplosionShotShard, // 620
-            ProjectileID.NebulaBlaze1, // 634
-            ProjectileID.NebulaBlaze2, // 635
-            ProjectileID.LunarFlare, // 645
-            ProjectileID.SandnadoFriendly, // 656
-            ProjectileID.SpiritFlame, // 659
-            ProjectileID.SkyFracture, // 660
-            ProjectileID.DD2ApprenticeStorm, // 704
-            ProjectileID.ApprenticeStaffT3Shot, // 711
-            ProjectileID.BookStaffShot, // 712
-            ProjectileID.ManaCloakStar, // 723
-            ProjectileID.BeeCloakStar, // 724
-            ProjectileID.StarVeilStar, // 725
-            ProjectileID.StarCloakStar, // 726
-            ProjectileID.ThunderStaffShot, // 731
-            ProjectileID.SharpTears, // 756
-            ProjectileID.BookOfSkullsSkull, // 837
-            ProjectileID.TitaniumStormShard, // 908
-            ProjectileID.ScytheWhipProj, // 916
-            ProjectileID.CoolWhipProj, // 917
-            ProjectileID.FireWhipProj, // 918
-            ProjectileID.FairyQueenMagicItemShot, // 931
-            ProjectileID.PrincessWeapon, // 950
-            ProjectileID.WandOfSparkingSpark, // 954
-            ProjectileID.InsanityShadowFriendly, // 964
-            ProjectileID.WeatherPainShot, // 969
-            ProjectileID.WandOfFrostingFrost, // 979
-            // Thrown (20)
-            ProjectileID.CannonballFriendly, // 162
-            ProjectileID.NurseSyringeHurt, // 583
-            ProjectileID.SantaBombs, // 589
-            ProjectileID.Football, // 861
-            ProjectileID.TreeGlobe, // 868
-            ProjectileID.WorldGlobe, // 869
-            ProjectileID.GelBalloon, // 936
-            ProjectileID.MoonGlobe, // 996
-            // Other (12)
-            ProjectileID.Bee, // 181
-            ProjectileID.FlowerPetal, // 221
-            ProjectileID.CrystalLeaf, // 226
-            ProjectileID.CrystalLeafShot, // 227
-            ProjectileID.ExplosiveBunny, // 281
-            ProjectileID.ScutlixLaserFriendly, // 434
-            ProjectileID.GiantBee, // 566
-            ProjectileID.MechanicWrench, // 582
-            ProjectileID.SolarCounter, // 608
-            ProjectileID.SolarWhipSwordExplosion, // 612
-            ProjectileID.StardustGuardianExplosion, // 624
-            ProjectileID.DaybreakExplosion, // 953
-            // Minion shots (7)
-            ProjectileID.PygmySpear, // 195
-            ProjectileID.HornetStinger, // 374
-            ProjectileID.ImpFireball, // 376
-            ProjectileID.MiniRetinaLaser, // 389
-            ProjectileID.MiniSharkron, // 408
-            ProjectileID.UFOLaser, // 433
-            ProjectileID.StardustCellMinionShot, // 614
-            // Sentry shots (11)
-            ProjectileID.FrostBlastFriendly, // 309
-            ProjectileID.SpiderEgg, // 378
-            ProjectileID.RainbowCrystalExplosion, // 644
-            ProjectileID.DD2FlameBurstTowerT1Shot, // 664
-            ProjectileID.DD2FlameBurstTowerT2Shot, // 666
-            ProjectileID.DD2FlameBurstTowerT3Shot, // 668
-            ProjectileID.DD2BallistraProj, // 680
-            ProjectileID.DD2ExplosiveTrapT1Explosion, // 694
-            ProjectileID.DD2ExplosiveTrapT2Explosion, // 695
-            ProjectileID.DD2ExplosiveTrapT3Explosion, // 696
-            ProjectileID.HoundiusShootiusFireball, // 967
+            ModContent.ProjectileType<BetsyMinion>(),
+            ModContent.ProjectileType<DarkMageMinion>(),
+            ModContent.ProjectileType<DestroyerMinion>(),
+            ModContent.ProjectileType<DukeFishronMinion>(),
+            ModContent.ProjectileType<EmpressOfLightMinion>(),
+            ModContent.ProjectileType<EverscreamMinion>(),
+            ModContent.ProjectileType<EyeOfCthulhuMinion>(),
+            ModContent.ProjectileType<GolemMinion>(),
+            ModContent.ProjectileType<IceQueenMinion>(),
+            ModContent.ProjectileType<KingSlimeMinion>(),
+            ModContent.ProjectileType<MartianSaucerMinion>(),
+            ModContent.ProjectileType<MoonLordMinion>(),
+            ModContent.ProjectileType<MourningWoodMinion>(),
+            ModContent.ProjectileType<OgreMinion>(),
+            ModContent.ProjectileType<PlanteraMinion>(),
+            ModContent.ProjectileType<PumpkingMinion>(),
+            ModContent.ProjectileType<RetinazerMinion>(),
+            ModContent.ProjectileType<SantaNK1Minion>(),
+            ModContent.ProjectileType<SkeletronMinion>(),
+            ModContent.ProjectileType<SkeletronPrimeMinion>(),
+            ModContent.ProjectileType<SpazmatismMinion>(),
+            ModContent.ProjectileType<TrueEyeOfCthulhuMinion>(),
         };
+
+        // The storm pool (2026-11-18, Peyton's rule): EVERY vanilla
+        // projectile that can fly at enemies and hurt them — EXCEPT:
+        //   - grappling hooks (NEVER — Peyton's explicit rule),
+        //   - explosives that break/remove tiles or place liquids/tiles,
+        //   - minion/sentry bodies (they ARE summons, not shots — their
+        //     SHOT projectiles pass the test on their own and stay in),
+        //   - hostile-only projectiles and non-damaging ones (pets,
+        //     visuals, town-NPC shots),
+        //   - player-held, channeled, or aimed styles (yoyos, held
+        //     projectiles, magic missiles, Medusa rays, whips, drills...)
+        //     — they cannot simply fly on their own.
+        // Spears and flails ARE included: at spawn time their aiStyle is
+        // swapped to Arrow so they simply fly (see FireStormVolley).
+        // The pool is a static hand-curated list (see StormPoolCandidates
+        // below) — the Nov 18 dynamic probe found ZERO valid types
+        // in-game and is never to be revived.
+        // NOTE: vanilla CanCutTiles() is deliberately NOT a filter here.
+        // It means cutting grass/plants/pots, which nearly every
+        // projectile can do (verified in the decompiled vanilla source:
+        // it returns true for everything except 5 cloud aiStyles and ~25
+        // exception types). Copilot filtered on it and the pool collapsed
+        // to a handful of gas clouds — that is why the storm looked
+        // broken. Tile DESTRUCTION is what matters, and that is covered
+        // by Sets.Explosive, the falling-block placers, and the liquid
+        // placers below.
+        private static int[] safeStormProjectileTypes;
+
+        // The storm fires 10 projectiles a tick, so the cap has to be
+        // high enough for the rings to actually build (60 would saturate
+        // in a fraction of a second and the storm would look frozen).
+        // 200 live storm projectiles still leaves most of the 1000
+        // projectile slots for minions, the player, and enemies.
+        private const int MaxActiveStormProjectiles = 200;
+
+        // Storm pool: the Nov 15 static list (323 vanilla types, curated
+        // from the game's own defaults), cleaned by name (31 removed:
+        // tile-breaking explosives, the WaterStream placer, whip shots,
+        // Magic Missile and the Medusa Head ray — plus, 2026-11-18 at
+        // Peyton's order, all sand and biome-altering projectiles: the
+        // four Sandgun balls — SandBallGun places sand, Ebonsand /
+        // Crimsand / PearlSandBallGun place biome sand that SPREADS
+        // Corruption, Crimson, and Hallow — and FinalFractal, removed
+        // out of caution: its aiStyle shares a case block containing a
+        // PlaceTile call in the decompiled source, and it could not be
+        // proven clean for 1.4.4) and filtered once more at runtime
+        // through the vanilla Sets (see IsStormSafe) so any explosive
+        // the name pass missed is still caught. The Clentaminator
+        // solutions, the three powders, and the three biome waters were
+        // never in the list. SandnadoFriendly STAYS (Peyton, 2026-11-18:
+        // "Keep the sandnado") — it is sand-themed but places nothing
+        // and alters no biome.
+        // TILE/LIQUID AUDIT (2026-11-18, Peyton's order — "make sure
+        // anything that can place or break tiles or remove or place
+        // liquids is excluded"): verified against the decompiled vanilla
+        // source. Every tile-breaker in Kill_ExplodeTiles (36 types:
+        // all bombs, dynamites, grenade II/IV, rocket II/IV, mines,
+        // cluster/mininuke II, Celeb2 rockets, SuperBombs, TNTBarrel,
+        // ScarabBomb) is NOT in the pool; the liquid bombs (Wet/Honey/
+        // Lava/Dry — the only liquid placers/removers) are NOT in the
+        // pool; the waters, WaterStream, WebSpit, sandgun balls, rope
+        // coils, DirtBall, IceBlock, all boulders, and the acorn are
+        // NOT in the pool. The lookalikes were checked individually:
+        // DD2ApprenticeStorm's grass-planting is gated to the Acorn
+        // Slingshot only, BookStaffShot is a plain arrow, SuperStarSlash
+        // runs none of the tile-placement code, and HellfireArrow /
+        // MolotovCocktail / CannonballFriendly / StarCannonStar /
+        // BoulderStaffOfEarth / Bubble break no tiles. The blocklist in
+        // IsStormSafe names the placers explicitly so a future edit
+        // cannot re-add one.
+        // WHY STATIC: the Nov 18 dynamic probe (new Projectile() +
+        // SetDefaults per type) found ZERO valid types in-game — the
+        // pool came up empty and the storm never fired (client.log
+        // 2026-11-18 02:22:44, "The charm's storm pool is empty").
+        // Never probe defaults with a bare projectile again.
+        private static readonly int[] StormPoolCandidates = new int[]
+        {
+            ProjectileID.EnchantedBoomerang, ProjectileID.Starfury, ProjectileID.Flamarang, ProjectileID.ThornChakram, ProjectileID.WoodenBoomerang, ProjectileID.LightDisc, ProjectileID.IceBoomerang, ProjectileID.SwordBeam,
+            ProjectileID.IceBolt, ProjectileID.FrostBoltSword, ProjectileID.Mushroom, ProjectileID.TerraBeam, ProjectileID.LightBeam, ProjectileID.NightBeam, ProjectileID.EnchantedBeam, ProjectileID.PossessedHatchet,
+            ProjectileID.SporeCloud, ProjectileID.ChlorophyteOrb, ProjectileID.FlowerPowPetal, ProjectileID.IceSickle, ProjectileID.Bananarang, ProjectileID.DeathSickle, ProjectileID.PaladinsHammerFriendly, ProjectileID.VampireKnife,
+            ProjectileID.EatersBite, ProjectileID.BloodyMachete, ProjectileID.FlamingJack, ProjectileID.FruitcakeChakram, ProjectileID.OrnamentFriendly, ProjectileID.NorthPoleSpear, ProjectileID.NorthPoleSnowflake, ProjectileID.FlaironBubble,
+            ProjectileID.InfluxWaver, ProjectileID.SeedlerNut, ProjectileID.SeedlerThorn, ProjectileID.FlyingKnife, ProjectileID.ShadowFlameKnife, ProjectileID.Meowmere, ProjectileID.StarWrath, ProjectileID.Spark,
+            ProjectileID.IchorSplash, ProjectileID.TerrarianBeam, ProjectileID.SolarFlareRay, ProjectileID.Daybreak, ProjectileID.Ale, ProjectileID.DD2SquireSonicBoom, ProjectileID.MonkStaffT1Explosion, ProjectileID.MonkStaffT2Ghast,
+            ProjectileID.MonkStaffT3_AltShot, ProjectileID.ThunderSpearShot, ProjectileID.FirstFractal, ProjectileID.BouncingShield, ProjectileID.Shroomerang, ProjectileID.CombatWrench, ProjectileID.OrnamentStar, ProjectileID.DripplerFlailExtraBall,
+            ProjectileID.TentacleSpike, ProjectileID.NightsEdge, ProjectileID.TrueNightsEdge, ProjectileID.LightsBane, ProjectileID.BloodButcherer, ProjectileID.Volcano, ProjectileID.Excalibur,
+            ProjectileID.TrueExcalibur, ProjectileID.TerraBlade2, ProjectileID.TerraBlade2Shot, ProjectileID.TheHorsemansBlade, ProjectileID.Trimarang, ProjectileID.Waffle, ProjectileID.WoodenArrowFriendly, ProjectileID.FireArrow,
+            ProjectileID.Shuriken, ProjectileID.UnholyArrow, ProjectileID.JestersArrow, ProjectileID.Bullet, ProjectileID.Bone, ProjectileID.SpikyBall, ProjectileID.MeteorShot, ProjectileID.HellfireArrow,
+            ProjectileID.ThrowingKnife, ProjectileID.Seed, ProjectileID.PoisonedKnife, ProjectileID.Flames, ProjectileID.CrystalBullet,
+            ProjectileID.CrystalShard, ProjectileID.HolyArrow, ProjectileID.HallowStar, ProjectileID.CursedArrow, ProjectileID.CursedBullet, ProjectileID.BoneArrow, ProjectileID.FrostArrow, ProjectileID.RocketI,
+            ProjectileID.RocketIII, ProjectileID.CopperCoin, ProjectileID.SilverCoin, ProjectileID.GoldCoin, ProjectileID.PlatinumCoin, ProjectileID.SnowBallFriendly, ProjectileID.FrostburnArrow, ProjectileID.Beenade,
+            ProjectileID.ChlorophyteBullet, ProjectileID.ChlorophyteArrow, ProjectileID.BulletHighVelocity, ProjectileID.Stynger, ProjectileID.StyngerShrapnel, ProjectileID.PoisonDartBlowgun, ProjectileID.IchorArrow, ProjectileID.IchorBullet,
+            ProjectileID.VenomArrow, ProjectileID.VenomBullet, ProjectileID.PartyBullet, ProjectileID.NanoBullet, ProjectileID.GoldenBullet, ProjectileID.CandyCorn, ProjectileID.JackOLantern, ProjectileID.RottenEgg,
+            ProjectileID.Stake, ProjectileID.StarAnise, ProjectileID.RocketSnowmanI, ProjectileID.RocketSnowmanIII, ProjectileID.PulseBolt, ProjectileID.MolotovCocktail, ProjectileID.ElectrosphereMissile,
+            ProjectileID.Electrosphere, ProjectileID.Xenopopper, ProjectileID.BeeArrow, ProjectileID.BoneArrowFromMerchant, ProjectileID.CrystalDart, ProjectileID.CursedDart, ProjectileID.IchorDart, ProjectileID.CursedDartFlame,
+            ProjectileID.Hellwing, ProjectileID.ShadowFlameArrow, ProjectileID.JavelinFriendly, ProjectileID.NailFriendly, ProjectileID.FrostDaggerfish, ProjectileID.ToxicBubble, ProjectileID.BoneGloveProj, ProjectileID.ClothiersCurse,
+            ProjectileID.PainterPaintball, ProjectileID.BoneJavelin, ProjectileID.BoneDagger, ProjectileID.ScutlixLaser, ProjectileID.VortexBeaterRocket, ProjectileID.PhantasmArrow, ProjectileID.MoonlordBullet, ProjectileID.MoonlordArrow,
+            ProjectileID.MoonlordArrowTrail, ProjectileID.BlackBolt, ProjectileID.DD2PhoenixBowShot, ProjectileID.DD2BetsyArrow, ProjectileID.Celeb2Rocket, ProjectileID.Celeb2RocketLarge, ProjectileID.SuperStar, ProjectileID.SuperStarSlash,
+            ProjectileID.Geode, ProjectileID.ClusterRocketI, ProjectileID.ClusterFragmentsI, ProjectileID.ClusterSnowmanRocketI, ProjectileID.BloodArrow, ProjectileID.ClusterSnowmanFragmentsI, ProjectileID.SantankMountRocket, ProjectileID.FairyQueenRangedItemShot,
+            ProjectileID.VolatileGelatinBall, ProjectileID.StarCannonStar, ProjectileID.PewMaticHornShot, ProjectileID.SilverBullet, ProjectileID.ShimmerArrow, ProjectileID.VilethornBase, ProjectileID.VilethornTip, ProjectileID.BallofFire,
+            ProjectileID.GreenLaser, ProjectileID.WaterBolt, ProjectileID.Flamelash, ProjectileID.DemonScythe, ProjectileID.RainbowRodBullet, ProjectileID.PurpleLaser, ProjectileID.MagicDagger, ProjectileID.CrystalStorm,
+            ProjectileID.CursedFlameFriendly, ProjectileID.UnholyTridentFriendly, ProjectileID.AmethystBolt, ProjectileID.TopazBolt, ProjectileID.SapphireBolt, ProjectileID.EmeraldBolt, ProjectileID.RubyBolt, ProjectileID.DiamondBolt,
+            ProjectileID.NettleBurstRight, ProjectileID.NettleBurstLeft, ProjectileID.NettleBurstEnd, ProjectileID.Wasp, ProjectileID.Leaf, ProjectileID.RainFriendly, ProjectileID.BloodRain, ProjectileID.BallofFrost,
+            ProjectileID.MagnetSphereBolt, ProjectileID.HeatRay, ProjectileID.BoulderStaffOfEarth, ProjectileID.PoisonFang, ProjectileID.GoldenShowerFriendly, ProjectileID.ShadowBeamFriendly, ProjectileID.InfernoFriendlyBolt, ProjectileID.InfernoFriendlyBlast,
+            ProjectileID.LostSoulFriendly, ProjectileID.Bat, ProjectileID.PineNeedleFriendly, ProjectileID.Blizzard, ProjectileID.VenomFang, ProjectileID.SpectreWrath, ProjectileID.FrostBoltStaff, ProjectileID.Typhoon,
+            ProjectileID.Bubble, ProjectileID.Meteor1, ProjectileID.Meteor2, ProjectileID.Meteor3, ProjectileID.LaserMachinegunLaser, ProjectileID.ChargedBlasterOrb, ProjectileID.SoulDrain, ProjectileID.CrystalVileShardHead,
+            ProjectileID.CrystalVileShardShaft, ProjectileID.ShadowFlame, ProjectileID.ToxicFlask, ProjectileID.ToxicCloud, ProjectileID.ToxicCloud2, ProjectileID.ToxicCloud3, ProjectileID.CrystalPulse, ProjectileID.CrystalPulse2,
+            ProjectileID.SporeGas, ProjectileID.SporeGas2, ProjectileID.SporeGas3, ProjectileID.MinecartMechLaser, ProjectileID.AmberBolt, ProjectileID.NebulaArcanum, ProjectileID.NebulaArcanumSubshot, ProjectileID.NebulaArcanumExplosionShot,
+            ProjectileID.NebulaArcanumExplosionShotShard, ProjectileID.NebulaBlaze1, ProjectileID.NebulaBlaze2, ProjectileID.LunarFlare, ProjectileID.SandnadoFriendly, ProjectileID.SpiritFlame, ProjectileID.SkyFracture, ProjectileID.DD2ApprenticeStorm,
+            ProjectileID.ApprenticeStaffT3Shot, ProjectileID.BookStaffShot, ProjectileID.ManaCloakStar, ProjectileID.BeeCloakStar, ProjectileID.StarVeilStar, ProjectileID.StarCloakStar, ProjectileID.ThunderStaffShot, ProjectileID.SharpTears,
+            ProjectileID.BookOfSkullsSkull, ProjectileID.TitaniumStormShard, ProjectileID.FairyQueenMagicItemShot, ProjectileID.PrincessWeapon, ProjectileID.WandOfSparkingSpark, ProjectileID.InsanityShadowFriendly, ProjectileID.WeatherPainShot, ProjectileID.WandOfFrostingFrost,
+            ProjectileID.CannonballFriendly, ProjectileID.NurseSyringeHurt, ProjectileID.Football, ProjectileID.TreeGlobe, ProjectileID.WorldGlobe, ProjectileID.GelBalloon, ProjectileID.MoonGlobe, ProjectileID.Bee,
+            ProjectileID.FlowerPetal, ProjectileID.CrystalLeaf, ProjectileID.CrystalLeafShot, ProjectileID.ScutlixLaserFriendly, ProjectileID.GiantBee, ProjectileID.MechanicWrench, ProjectileID.SolarCounter, ProjectileID.SolarWhipSwordExplosion,
+            ProjectileID.StardustGuardianExplosion, ProjectileID.DaybreakExplosion, ProjectileID.PygmySpear, ProjectileID.HornetStinger, ProjectileID.ImpFireball, ProjectileID.MiniRetinaLaser, ProjectileID.MiniSharkron, ProjectileID.UFOLaser,
+            ProjectileID.StardustCellMinionShot, ProjectileID.FrostBlastFriendly, ProjectileID.SpiderEgg, ProjectileID.RainbowCrystalExplosion, ProjectileID.DD2FlameBurstTowerT1Shot, ProjectileID.DD2FlameBurstTowerT2Shot, ProjectileID.DD2FlameBurstTowerT3Shot, ProjectileID.DD2BallistraProj,
+            ProjectileID.HoundiusShootiusFireball
+        };
+
+        private static int[] StormPool
+        {
+            get
+            {
+                if (safeStormProjectileTypes == null)
+                {
+                    List<int> pool = new List<int>();
+                    foreach (int type in StormPoolCandidates)
+                    {
+                        if (IsStormSafe(type))
+                            pool.Add(type);
+                    }
+
+                    if (pool.Count == 0)
+                        throw new InvalidOperationException("The charm's storm pool is empty.");
+
+                    safeStormProjectileTypes = pool.ToArray();
+                }
+
+                return safeStormProjectileTypes;
+            }
+        }
+
+        // Runtime safety net over the static candidate list. Uses ONLY
+        // the vanilla Sets (static data, no projectile probing) plus a
+        // small name blocklist for the liquid placers, which no Set
+        // covers. Hooks are never in the candidate list to begin with.
+        private static bool IsStormSafe(int type)
+        {
+            if (type <= ProjectileID.None || type >= ProjectileID.Count)
+                return false;
+
+            // Tile-breaking explosives (grenades, cluster/mininuke
+            // rockets, Beenade, trap explosions, ...). Sets.Explosive
+            // is the vanilla marker — it catches every tile-breaker
+            // including ones the name pass missed.
+            if (type < ProjectileID.Sets.Explosive.Length && ProjectileID.Sets.Explosive[type])
+                return false;
+            if (type < ProjectileID.Sets.IsAnNPCAttachedExplosive.Length && ProjectileID.Sets.IsAnNPCAttachedExplosive[type])
+                return false;
+            // Anything that places a block when it lands.
+            if (type < ProjectileID.Sets.FallingBlockTileItem.Length && ProjectileID.Sets.FallingBlockTileItem[type] != null)
+                return false;
+            // Grappling hooks: NEVER (belt and suspenders — none are
+            // in the candidate list, but a future edit must not add one).
+            if (type < ProjectileID.Sets.SingleGrappleHook.Length && ProjectileID.Sets.SingleGrappleHook[type])
+                return false;
+
+            // Liquid/tile placers and biome converters (no Set covers them).
+            // None of these are in the candidate list — this is belt and
+            // suspenders so a future edit cannot re-add one by accident.
+            // Tile-BREAKERS are covered above by Sets.Explosive (the
+            // game's own marker); the names below are the placers and
+            // liquid movers, which no Set marks.
+            if (type == ProjectileID.HolyWater ||
+                type == ProjectileID.UnholyWater ||
+                type == ProjectileID.BloodWater ||
+                type == ProjectileID.WaterStream ||
+                type == ProjectileID.WebSpit ||
+                type == ProjectileID.SandBallGun ||
+                type == ProjectileID.EbonsandBallGun ||
+                type == ProjectileID.CrimsandBallGun ||
+                type == ProjectileID.PearlSandBallGun ||
+                type == ProjectileID.WetBomb ||
+                type == ProjectileID.HoneyBomb ||
+                type == ProjectileID.LavaBomb ||
+                type == ProjectileID.DryBomb ||
+                type == ProjectileID.DirtBall ||
+                type == ProjectileID.IceBlock ||
+                type == ProjectileID.RopeCoil ||
+                type == ProjectileID.VineRopeCoil ||
+                type == ProjectileID.SilkRopeCoil ||
+                type == ProjectileID.WebRopeCoil ||
+                type == ProjectileID.SandBallFalling ||
+                type == ProjectileID.FinalFractal)
+                return false;
+
+            return true;
+        }
 
         // On-hit cascade: the old Eternity's on-hit triggers — lightning
         // (Sky Fracture's splitting bolt), spectral orbs, petals.
@@ -476,7 +419,16 @@ namespace CelestialAerus.Players
         public override void PostUpdate()
         {
             if (!charmEquipped)
+            {
+                if (charmWasEquipped)
+                {
+                    DismissCharmSentries();
+                    charmWasEquipped = false;
+                }
                 return;
+            }
+
+            charmWasEquipped = true;
 
             // Refresh continuously while equipped; the short duration lets
             // the buff expire promptly when the charm is removed.
@@ -496,14 +448,16 @@ namespace CelestialAerus.Players
                 minionTimer = 60;
                 MaintainMinionArmy();
             }
+            // Sentries follow the player like minions (see FollowSentries).
             RefreshMinionTimeLeft();
+            FollowSentries();
 
-            // The storm: a volley every half second in combat, every second
-            // when no enemies are around (2026-11-15, Peyton's order).
-            if (--stormTimer <= 0)
+            // Storm: a fresh ring of 10 every 4 ticks (see FireStormVolley).
+            // Peyton reduced the rate from every tick (2026-11-18).
+            if (++stormTimer >= 4)
             {
-                bool foundTargets = FireStormVolley();
-                stormTimer = foundTargets ? 30 : 60;
+                stormTimer = 0;
+                FireStormVolley();
             }
 
             if (cascadeCooldown > 0)
@@ -596,9 +550,12 @@ namespace CelestialAerus.Players
             Player.pStone = true;              // Philosopher's Stone (potion cooldown)
             Player.shinyStone = true;          // Shiny Stone
 
-            // --- Minions ---
-            Player.maxMinions += 45;           // 29 vanilla + 10 Aerus + 6 spare
-            Player.maxTurrets += 10;
+            // --- Minions and sentries ---
+            // +6 helper projectiles (Destroyer probes, Prime bombs, Betsy
+            // breath, Saucer deathrays/missiles, Pumpking blades) + 2 extra
+            // True Eyes (three spawn, one is counted in BossMinionTypes).
+            Player.maxMinions += VanillaMinionTypes.Length + WeaponMinionTypes.Length + BossMinionTypes.Length + 8;
+            Player.maxTurrets += VanillaSentryTypes.Length + 10;
 
             // --- On-hit / reactive ---
             // 1.4.4 tracks these as Item references, not bools: the game
@@ -672,11 +629,37 @@ namespace CelestialAerus.Players
                 if (!MinionActive(type))
                     SpawnMinion(type);
             }
+            foreach (int type in VanillaSentryTypes)
+            {
+                if (!MinionActive(type))
+                    SpawnMinion(type);
+            }
             foreach (int type in WeaponMinionTypes)
             {
                 if (!MinionActive(type))
                     SpawnMinion(type);
             }
+            foreach (int type in BossMinionTypes)
+            {
+                if (!MinionActive(type))
+                    SpawnMinion(type);
+            }
+
+            // True Eyes of Cthulhu come in threes (vanilla spawns one per
+            // destroyed Moon Lord part — Peyton, 2026-11-18). The boss
+            // loop above guarantees the first; top up to three here.
+            // The eyes stagger their attack cycles by index among the
+            // active eyes (see TrueEyeOfCthulhuMinion), so they don't
+            // attack in lockstep.
+            int trueEyeType = ModContent.ProjectileType<TrueEyeOfCthulhuMinion>();
+            int trueEyes = 0;
+            foreach (Projectile proj in Main.projectile)
+            {
+                if (proj.active && proj.owner == Player.whoAmI && proj.type == trueEyeType)
+                    trueEyes++;
+            }
+            for (; trueEyes < 3; trueEyes++)
+                SpawnMinion(trueEyeType);
         }
 
         private bool MinionActive(int type)
@@ -691,6 +674,8 @@ namespace CelestialAerus.Players
 
         private void SpawnMinion(int type)
         {
+            // Sentries spawn at the player like everything else — the
+            // follow logic in FollowSentries positions them from there.
             int index = Projectile.NewProjectile(
                 Player.GetSource_FromThis(),
                 Player.Center.X, Player.Center.Y,
@@ -702,18 +687,19 @@ namespace CelestialAerus.Players
                 return;
 
             Projectile proj = Main.projectile[index];
+
             // Typeless damage, local immunity frames: every ally hits each
             // enemy independently (20-tick cooldown per ally).
             proj.DamageType = DamageClass.Generic;
             proj.usesLocalNPCImmunity = true;
             proj.localNPCHitCooldown = CharmLocalCooldown;
-            proj.timeLeft = 2;
+            proj.timeLeft = proj.sentry ? Projectile.SentryLifeTime : 2;
             proj.netUpdate = true;
+            if (proj.sentry)
+                Player.UpdateMaxTurrets();
         }
 
-        // Keep every charm minion alive while the charm is equipped. When it
-        // is unequipped, the refresh stops and the army dismisses itself
-        // within 2 ticks (their timeLeft is 2).
+        // Keep every charm summon alive while the charm is equipped.
         private void RefreshMinionTimeLeft()
         {
             foreach (Projectile proj in Main.projectile)
@@ -722,7 +708,62 @@ namespace CelestialAerus.Players
                     continue;
                 if (!IsCharmMinion(proj.type))
                     continue;
-                proj.timeLeft = 2;
+                proj.timeLeft = proj.sentry ? Projectile.SentryLifeTime : 2;
+            }
+        }
+
+        // Sentries behave like minions and follow the player (Peyton,
+        // 2026-11-18) instead of sitting on the floor where they were
+        // summoned. Each one holds a slot in a loose ring around the
+        // player, gliding toward it like a minion trailing its owner,
+        // and snapping back if the player teleports or falls far away.
+        // Sentry firing AI runs off position, not ground contact, so
+        // they keep shooting while they follow; moving them by Center
+        // (not velocity) means they glide through walls like minions.
+        private void FollowSentries()
+        {
+            int sentryCount = 0;
+            foreach (Projectile proj in Main.projectile)
+            {
+                if (proj.active && proj.owner == Player.whoAmI && proj.sentry && IsCharmMinion(proj.type))
+                    sentryCount++;
+            }
+            if (sentryCount == 0)
+                return;
+
+            int slot = 0;
+            foreach (Projectile proj in Main.projectile)
+            {
+                if (!proj.active || proj.owner != Player.whoAmI || !proj.sentry || !IsCharmMinion(proj.type))
+                    continue;
+
+                float angle = MathHelper.TwoPi * slot / sentryCount;
+                Vector2 targetPos = Player.Center + Vector2.UnitX.RotatedBy(angle) * 120f;
+                slot++;
+
+                if (Vector2.DistanceSquared(proj.Center, targetPos) > 800f * 800f)
+                {
+                    proj.Center = targetPos;
+                    proj.netUpdate = true;
+                }
+                else
+                {
+                    proj.Center = Vector2.Lerp(proj.Center, targetPos, 0.25f);
+                }
+                proj.velocity = Vector2.Zero;
+            }
+        }
+
+        private void DismissCharmSentries()
+        {
+            foreach (Projectile proj in Main.projectile)
+            {
+                if (proj.active &&
+                    proj.owner == Player.whoAmI &&
+                    Array.IndexOf(VanillaSentryTypes, proj.type) >= 0)
+                {
+                    proj.timeLeft = 2;
+                }
             }
         }
 
@@ -733,7 +774,17 @@ namespace CelestialAerus.Players
                 if (t == type)
                     return true;
             }
+            foreach (int t in VanillaSentryTypes)
+            {
+                if (t == type)
+                    return true;
+            }
             foreach (int t in WeaponMinionTypes)
+            {
+                if (t == type)
+                    return true;
+            }
+            foreach (int t in BossMinionTypes)
             {
                 if (t == type)
                     return true;
@@ -742,41 +793,31 @@ namespace CelestialAerus.Players
         }
 
         // ------------------------------------------------------------------
-        // The storm: one volley per second at nearby enemies.
+        // The storm: a fresh ring of 10 randomly picked projectiles EVERY
+        // tick (2026-11-18, Peyton's order) — the pool cycles through
+        // random groups of 10, fired in a full 360-degree radial ring
+        // around the player. The ring is rotated by a random angle each
+        // tick so the spray stays uniform instead of forming fixed spokes.
+        // The active cap is the throttle: when the storm is at capacity,
+        // the tick fires nothing and it refills as projectiles expire.
         // ------------------------------------------------------------------
-        // Returns true if any targets were found (drives the volley timer:
-        // half a second in combat, one second when the area is clear).
-        private bool FireStormVolley()
+        private void FireStormVolley()
         {
             if (Player.whoAmI != Main.myPlayer)
-                return false;
+                return;
 
-            // Up to 5 nearby enemies to split the volley across. The check is
-            // inlined (active, hostile, damageable) instead of calling
-            // NPC.CanBeChasedBy() — the parameterless overload's behavior in
-            // tML 1.4.4 is not the same as the projectile overload the boss
-            // minions use, and the storm found no targets with it.
-            List<NPC> targets = new List<NPC>();
-            foreach (NPC npc in Main.npc)
-            {
-                if (!npc.active || npc.friendly || npc.lifeMax <= 5 || npc.dontTakeDamage || npc.type == NPCID.TargetDummy)
-                    continue;
-                if (Vector2.DistanceSquared(Player.Center, npc.Center) > 2000f * 2000f)
-                    continue;
-                targets.Add(npc);
-                if (targets.Count >= 5)
-                    break;
-            }
+            int activeStormCount = CountActiveStormProjectiles();
+            int remainingCapacity = Math.Max(0, MaxActiveStormProjectiles - activeStormCount);
+            if (remainingCapacity <= 0)
+                return;
 
-            int count = Main.rand.Next(8, 11); // 8–10 projectiles per volley
+            int count = Math.Min(10, remainingCapacity);
+            float ringOffset = Main.rand.NextFloat(MathHelper.TwoPi);
             for (int i = 0; i < count; i++)
             {
                 int type = StormPool[Main.rand.Next(StormPool.Length)];
 
-                // Evenly space the volley around the player. Keep storm
-                // projectiles on their radial paths instead of homing toward
-                // one target and making the volley appear one-sided.
-                Vector2 dir = Vector2.UnitX.RotatedBy(MathHelper.TwoPi * i / count);
+                Vector2 dir = Vector2.UnitX.RotatedBy(ringOffset + MathHelper.TwoPi * i / count + Main.rand.NextFloat(-0.15f, 0.15f));
                 Vector2 velocity = dir * Main.rand.NextFloat(14f, 20f);
 
                 int index = Projectile.NewProjectile(
@@ -792,9 +833,46 @@ namespace CelestialAerus.Players
                 proj.DamageType = DamageClass.Generic;
                 proj.usesLocalNPCImmunity = true;
                 proj.localNPCHitCooldown = CharmLocalCooldown;
-            }
+                proj.timeLeft = Math.Min(proj.timeLeft, StormProjectileLifetime);
 
-            return targets.Count > 0;
+                // Spears and flails cannot fly on their own — their vanilla
+                // AI (aiStyle Spear/Flail and family) holds them at the
+                // player's hand and locks item use. Swap their aiStyle to
+                // Arrow so they simply fly, and give them the gentle
+                // homing so they curve toward enemies (Peyton, 2026-11-18).
+                // Verified against the decompiled vanilla AI: spear/flail
+                // behavior (hold, chain, extension hitbox, item-time lock)
+                // is all dispatched on aiStyle, so the swap bypasses all
+                // of it. Hooks are NEVER in the pool, so they never
+                // reach this branch.
+                if (proj.aiStyle == ProjAIStyleID.Spear ||
+                    proj.aiStyle == ProjAIStyleID.NorthPoleSpear ||
+                    proj.aiStyle == ProjAIStyleID.Flail ||
+                    proj.aiStyle == ProjAIStyleID.Harpoon ||
+                    proj.aiStyle == ProjAIStyleID.MechanicalPiranha ||
+                    proj.aiStyle == ProjAIStyleID.Flairon)
+                {
+                    proj.aiStyle = ProjAIStyleID.Arrow;
+                    proj.GetGlobalProjectile<CharmGlobalProjectile>().stormHoming = true;
+                }
+
+                proj.GetGlobalProjectile<CharmGlobalProjectile>().charmStormProjectile = true;
+                proj.netUpdate = true;
+            }
+        }
+
+        private int CountActiveStormProjectiles()
+        {
+            int count = 0;
+            foreach (Projectile projectile in Main.projectile)
+            {
+                if (!projectile.active || projectile.owner != Player.whoAmI)
+                    continue;
+
+                if (projectile.GetGlobalProjectile<CharmGlobalProjectile>().charmStormProjectile)
+                    count++;
+            }
+            return count;
         }
 
         // ------------------------------------------------------------------
@@ -850,6 +928,7 @@ namespace CelestialAerus.Players
                 proj.usesLocalNPCImmunity = true;
                 proj.localNPCHitCooldown = CharmLocalCooldown;
                 proj.GetGlobalProjectile<CharmGlobalProjectile>().cascadeHoming = true;
+                proj.netUpdate = true;
             }
         }
     }

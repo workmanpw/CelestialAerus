@@ -48,6 +48,7 @@ namespace CelestialAerus.Items
                 .AddIngredient(ModContent.ItemType<CelestialAerus>())
                 .AddIngredient(ModContent.ItemType<CelestialTempest>())
                 .AddIngredient(ModContent.ItemType<Cosmosis>())
+                .AddIngredient(ModContent.ItemType<Firstlight>())
                 .AddIngredient(ModContent.ItemType<NebulaBlazeSword>())
                 .AddIngredient(ModContent.ItemType<SpaceLaserRemote>())
                 .AddIngredient(ModContent.ItemType<ThreadOfTheEmpyrean>())
