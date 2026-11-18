@@ -250,6 +250,56 @@ Configs: {
 			Tooltip: ""
 		}
 	}
+
+	CharmConfig: {
+		DisplayName: Charm Config
+
+		Headers: {
+			Storm: Storm Header
+			Minions: Minions Header
+			Damage: Damage Header
+		}
+
+		StormEnabled: {
+			Label: Storm Enabled
+			Tooltip: ""
+		}
+
+		StormFireRate: {
+			Label: Storm Fire Rate
+			Tooltip: ""
+		}
+
+		StormProjectilesPerRing: {
+			Label: Storm Projectiles Per Ring
+			Tooltip: ""
+		}
+
+		StormMaxProjectiles: {
+			Label: Storm Max Projectiles
+			Tooltip: ""
+		}
+
+		VanillaMinionsEnabled: {
+			Label: Vanilla Minions Enabled
+			Tooltip: ""
+		}
+
+		WeaponMinionsEnabled: {
+			Label: Weapon Minions Enabled
+			Tooltip: ""
+		}
+
+		BossMinionsEnabled: {
+			Label: Boss Minions Enabled
+			Tooltip: ""
+		}
+
+		CharmDamage: {
+			Label: Charm Damage
+			Tooltip: ""
+		}
+	}
 }
 
 Keybinds.SwitchAerusMode.DisplayName: Switch Aerus Mode

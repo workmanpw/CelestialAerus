@@ -311,7 +311,7 @@ namespace CelestialAerus.Players
             ProjectileID.NebulaArcanumExplosionShotShard, ProjectileID.NebulaBlaze1, ProjectileID.NebulaBlaze2, ProjectileID.LunarFlare, ProjectileID.SandnadoFriendly, ProjectileID.SpiritFlame, ProjectileID.SkyFracture, ProjectileID.DD2ApprenticeStorm,
             ProjectileID.ApprenticeStaffT3Shot, ProjectileID.BookStaffShot, ProjectileID.ManaCloakStar, ProjectileID.BeeCloakStar, ProjectileID.StarVeilStar, ProjectileID.StarCloakStar, ProjectileID.ThunderStaffShot, ProjectileID.SharpTears,
             ProjectileID.BookOfSkullsSkull, ProjectileID.TitaniumStormShard, ProjectileID.FairyQueenMagicItemShot, ProjectileID.PrincessWeapon, ProjectileID.WandOfSparkingSpark, ProjectileID.InsanityShadowFriendly, ProjectileID.WeatherPainShot, ProjectileID.WandOfFrostingFrost,
-            ProjectileID.CannonballFriendly, ProjectileID.NurseSyringeHurt, ProjectileID.Football, ProjectileID.TreeGlobe, ProjectileID.WorldGlobe, ProjectileID.GelBalloon, ProjectileID.MoonGlobe, ProjectileID.Bee,
+            ProjectileID.CannonballFriendly, ProjectileID.NurseSyringeHurt, ProjectileID.TreeGlobe, ProjectileID.WorldGlobe, ProjectileID.GelBalloon, ProjectileID.MoonGlobe, ProjectileID.Bee,
             ProjectileID.FlowerPetal, ProjectileID.CrystalLeaf, ProjectileID.CrystalLeafShot, ProjectileID.ScutlixLaserFriendly, ProjectileID.GiantBee, ProjectileID.MechanicWrench, ProjectileID.SolarCounter, ProjectileID.SolarWhipSwordExplosion,
             ProjectileID.StardustGuardianExplosion, ProjectileID.DaybreakExplosion, ProjectileID.PygmySpear, ProjectileID.HornetStinger, ProjectileID.ImpFireball, ProjectileID.MiniRetinaLaser, ProjectileID.MiniSharkron, ProjectileID.UFOLaser,
             ProjectileID.StardustCellMinionShot, ProjectileID.FrostBlastFriendly, ProjectileID.SpiderEgg, ProjectileID.RainbowCrystalExplosion, ProjectileID.DD2FlameBurstTowerT1Shot, ProjectileID.DD2FlameBurstTowerT2Shot, ProjectileID.DD2FlameBurstTowerT3Shot, ProjectileID.DD2BallistraProj,
@@ -381,6 +381,7 @@ namespace CelestialAerus.Players
                 type == ProjectileID.EbonsandBallGun ||
                 type == ProjectileID.CrimsandBallGun ||
                 type == ProjectileID.PearlSandBallGun ||
+                type == ProjectileID.Football ||
                 type == ProjectileID.WetBomb ||
                 type == ProjectileID.HoneyBomb ||
                 type == ProjectileID.LavaBomb ||
