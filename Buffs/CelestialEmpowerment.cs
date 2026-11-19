@@ -17,7 +17,7 @@ namespace CelestialAerus.AerusBuffs
     {
         // Dedicated 32x32 buff icon (2026-11-15): the old Cosmosis texture
         // is 76x76, far larger than vanilla's 32x32 buff icons.
-        public override string Texture => "CelestialAerus/Textures/CelestialEmpowerment";
+        public override string Texture => "CelestialAerus/Assets/Textures/CelestialEmpowerment";
 
         public override void SetStaticDefaults()
         {

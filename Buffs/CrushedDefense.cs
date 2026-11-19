@@ -8,7 +8,7 @@ namespace CelestialAerus.AerusBuffs
 {
     public class CrushedDefense : ModBuff
     {
-        public override string Texture => "CelestialAerus/Textures/CelestialFireball"; // Use Celestial Fireball texture as icon
+        public override string Texture => "CelestialAerus/Assets/Textures/CelestialFireball"; // Use Celestial Fireball texture as icon
 
         public override void SetStaticDefaults()
         {

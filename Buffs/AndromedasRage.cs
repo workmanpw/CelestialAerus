@@ -9,7 +9,7 @@ namespace CelestialAerus.AerusBuffs
 {
     public class AndromedasRage : ModBuff
     {
-        public override string Texture => "CelestialAerus/Textures/CelestialFireball";
+        public override string Texture => "CelestialAerus/Assets/Textures/CelestialFireball";
 
         public override void SetStaticDefaults()
         {
